@@ -804,7 +804,8 @@ bool CDVDVideoCodecVDA::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options)
     }
  
     m_use_cvBufferRef = true;
-#if 0
+
+	// Rassi
     //TODO fix after Frodo if (g_Windowing.GetRenderVendor().Find("Intel") > -1)
     {
       m_dllSwScale = new DllSwScale;
@@ -848,7 +849,6 @@ bool CDVDVideoCodecVDA::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options)
 
       m_use_cvBufferRef = false;
     }
-#endif
 
     // setup the decoder configuration dict
     CFMutableDictionaryRef decoderConfiguration = CFDictionaryCreateMutable(
@@ -1023,9 +1023,10 @@ int CDVDVideoCodecVDA::Decode(BYTE* pData, int iSize, double dts, double pts)
     }
   }
 
+  // Rassi
   // force synchronous decode to fix issues with ATI GPUs,
   // we still have to sort returned frames by pts to handle out-of-order demuxer packets. 
-  m_dll->VDADecoderFlush((VDADecoder)m_vda_decoder, kVDADecoderFlush_EmitFrames);
+  //m_dll->VDADecoderFlush((VDADecoder)m_vda_decoder, kVDADecoderFlush_EmitFrames);
 
   if (m_queue_depth < m_max_ref_frames)
     return VC_BUFFER;
