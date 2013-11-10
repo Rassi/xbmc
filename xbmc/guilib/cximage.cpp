@@ -1,6 +1,6 @@
 /*
- *      Copyright (C) 2012 Team XBMC
- *      http://www.xbmc.org
+ *      Copyright (C) 2012-2013 Team XBMC
+ *      http://xbmc.org
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,9 +30,12 @@ CXImage::CXImage(const std::string& strMimeType): m_strMimeType(strMimeType), m_
 
 CXImage::~CXImage()
 {
-  m_dll.FreeMemory(m_thumbnailbuffer);
-  m_dll.ReleaseImage(&m_image);
-  m_dll.Unload();
+  if (m_dll.IsLoaded()) 
+  {
+    m_dll.FreeMemory(m_thumbnailbuffer);
+    m_dll.ReleaseImage(&m_image);
+    m_dll.Unload();
+  }
 }
 
 bool CXImage::LoadImageFromMemory(unsigned char* buffer, unsigned int bufSize, unsigned int width, unsigned int height)
@@ -43,8 +46,8 @@ bool CXImage::LoadImageFromMemory(unsigned char* buffer, unsigned int bufSize, u
   memset(&m_image, 0, sizeof(m_image));
 
   std::string strExt = m_strMimeType;
-  int nPos = strExt.find('/');
-  if (nPos > -1)
+  size_t nPos = strExt.find('/');
+  if (nPos != std::string::npos)
     strExt.erase(0, nPos + 1);
 
   if(!m_dll.LoadImageFromMemory(buffer, bufSize, strExt.c_str(), width, height, &m_image))
@@ -64,7 +67,7 @@ bool CXImage::LoadImageFromMemory(unsigned char* buffer, unsigned int bufSize, u
 
 bool CXImage::Decode(const unsigned char *pixels, unsigned int pitch, unsigned int format)
 {
-  if (m_image.width == 0 || m_image.width == 0 || !m_dll.IsLoaded())
+  if (m_image.width == 0 || m_image.height == 0 || !m_dll.IsLoaded())
     return false;
 
   unsigned int dstPitch = pitch;
