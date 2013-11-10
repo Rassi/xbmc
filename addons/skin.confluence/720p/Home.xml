@@ -913,7 +913,7 @@
 					</item>
 					<item id="2">
 						<label>31953</label>
-						<onclick condition="StringCompare(Window.Property(VideosDirectLink),True)">ActivateWindow(Videos)</onclick>
+						<onclick condition="StringCompare(Window.Property(VideosDirectLink),True)">ActivateWindow(Videos,Files,return)</onclick>
 						<onclick condition="!StringCompare(Window.Property(VideosDirectLink),True)">ActivateWindow(Videos,root)</onclick>
 						<icon>-</icon>
 						<thumb>-</thumb>
