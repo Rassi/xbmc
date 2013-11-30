@@ -539,7 +539,8 @@ COMXPlayer::COMXPlayer(IPlayerCallback &callback)
       m_omxPlayerAudio(&m_av_clock, m_messenger),
       m_dvdPlayerSubtitle(&m_overlayContainer),
       m_dvdPlayerTeletext(),
-      m_ready(true)
+      m_ready(true),
+      m_DemuxerPausePending(false)
 {
   m_pDemuxer          = NULL;
   m_pSubtitleDemuxer  = NULL;
@@ -870,8 +871,8 @@ void COMXPlayer::OpenDefaultStreams(bool reset)
   if(!valid)
     CloseAudioStream(true);
 
-  // enable subtitles
-  m_omxPlayerVideo.EnableSubtitle(CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleOn);
+  // enable  or disable subtitles
+  SetSubtitleVisible(CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleOn);
 
   // open subtitle stream
   OMXSelectionStream as = m_SelectionStreams.Get(STREAM_AUDIO, GetAudioStream());
@@ -892,7 +893,12 @@ void COMXPlayer::OpenDefaultStreams(bool reset)
   if(!valid)
   {
     CloseSubtitleStream(true);
-    SetSubtitleVisible(false);
+    if (m_pInputStream && !(m_pInputStream->IsStreamType(DVDSTREAM_TYPE_DVD) || m_pInputStream->IsStreamType(DVDSTREAM_TYPE_BLURAY)))
+    {
+      SetSubtitleVisible(false);
+      if (GetSubtitleCount() > 0 && CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleStream == -1)
+        CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleStream = 0;
+    }
   }
 
   // open teletext stream
@@ -1392,6 +1398,12 @@ void COMXPlayer::Process()
     if ((!m_omxPlayerAudio.AcceptsData() && m_CurrentAudio.id >= 0) ||
         (!m_omxPlayerVideo.AcceptsData() && m_CurrentVideo.id >= 0))
     {
+      if(m_pDemuxer && m_DemuxerPausePending)
+      {
+        m_DemuxerPausePending = false;
+        m_pDemuxer->SetSpeed(DVD_PLAYSPEED_PAUSE);
+      }
+
       Sleep(10);
       continue;
     }
@@ -2572,11 +2584,14 @@ void COMXPlayer::HandleMessages()
         m_omxPlayerAudio.SetSpeed(speed);
         m_omxPlayerVideo.SetSpeed(speed);
 
-        // TODO - we really shouldn't pause demuxer
-        //        until our buffers are somewhat filled
+        // We can't pause demuxer until our buffers are full. Doing so will result in continued
+        // calls to Read() which may then block indefinitely (CDVDInputStreamRTMP for example).
         if(m_pDemuxer)
-          m_pDemuxer->SetSpeed(speed);
-
+        {
+          m_DemuxerPausePending = (speed == DVD_PLAYSPEED_PAUSE);
+          if (!m_DemuxerPausePending)
+            m_pDemuxer->SetSpeed(speed);
+        }
         CLog::Log(LOGDEBUG, "COMXPlayer - CDVDMsg::PLAYER_SETSPEED speed : %d", speed);
       }
       else if (pMsg->IsType(CDVDMsg::PLAYER_CHANNEL_SELECT_NUMBER) && m_messenger.GetPacketCount(CDVDMsg::PLAYER_CHANNEL_SELECT_NUMBER) == 0)
@@ -3042,8 +3057,6 @@ float COMXPlayer::GetSubTitleDelay()
 // priority: 1: libdvdnav, 2: external subtitles, 3: muxed subtitles
 int COMXPlayer::GetSubtitleCount()
 {
-  OMXStreamLock lock(this);
-  m_SelectionStreams.Update(m_pInputStream, m_pDemuxer);
   return m_SelectionStreams.Count(STREAM_SUBTITLE);
 }
 
@@ -3095,8 +3108,6 @@ void COMXPlayer::SetSubtitleVisible(bool bVisible)
 
 int COMXPlayer::GetAudioStreamCount()
 {
-  OMXStreamLock lock(this);
-  m_SelectionStreams.Update(m_pInputStream, m_pDemuxer);
   return m_SelectionStreams.Count(STREAM_AUDIO);
 }
 
@@ -3235,7 +3246,7 @@ bool COMXPlayer::OpenAudioStream(int iStream, int source, bool reset)
 
   /* software decoding normaly consumes full cpu time so prio it */
   m_omxPlayerAudio.SetPriority(GetPriority()+1);
-  CMediaSettings::Get().GetCurrentVideoSettings().m_AudioStream =  m_SelectionStreams.IndexOf(STREAM_AUDIO, source, iStream);
+  CMediaSettings::Get().GetCurrentVideoSettings().m_AudioStream = GetAudioStream();
   return true;
 }
 
@@ -3425,7 +3436,7 @@ bool COMXPlayer::OpenSubtitleStream(int iStream, int source)
   m_CurrentSubtitle.stream = (void*)pStream;
   m_CurrentSubtitle.started = false;
 
-  CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleStream = m_SelectionStreams.IndexOf(STREAM_SUBTITLE, source, iStream);
+  CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleStream = GetSubtitle();
   return true;
 }
 
@@ -3435,7 +3446,7 @@ bool COMXPlayer::AdaptForcedSubtitles()
   OMXSelectionStream ss = m_SelectionStreams.Get(STREAM_SUBTITLE, GetSubtitle());
   if (ss.flags & CDemuxStream::FLAG_FORCED || !GetSubtitleVisible())
   {
-    OMXSelectionStream as = m_SelectionStreams.Get(STREAM_SUBTITLE, GetAudioStream());
+    OMXSelectionStream as = m_SelectionStreams.Get(STREAM_AUDIO, GetAudioStream());
     OMXSelectionStreams streams = m_SelectionStreams.Get(STREAM_SUBTITLE);
 
     for(OMXSelectionStreams::iterator it = streams.begin(); it != streams.end() && !valid; ++it)
@@ -3749,7 +3760,7 @@ int COMXPlayer::OnDVDNavResult(void* pData, int iMessage)
         int iStream = event->physical_wide;
         bool visible = !(iStream & 0x80);
 
-        m_omxPlayerVideo.EnableSubtitle(visible);
+        SetSubtitleVisible(visible);
 
         if (iStream >= 0)
           m_dvd.iSelectedSPUStream = (iStream & ~0x80);
@@ -4204,7 +4215,15 @@ void COMXPlayer::GetVideoStreamInfo(SPlayerVideoStreamInfo &info)
 
   CStdString retVal;
   if (m_pDemuxer && (m_CurrentVideo.id != -1))
+  {
     m_pDemuxer->GetStreamCodecName(m_CurrentVideo.id, retVal);
+    CDemuxStreamVideo* stream = static_cast<CDemuxStreamVideo*>(m_pDemuxer->GetStream(m_CurrentVideo.id));
+    if (stream)
+    {
+      info.width  = stream->iWidth;
+      info.height = stream->iHeight;
+    }
+  }
   info.videoCodecName = retVal;
   info.videoAspectRatio = g_renderManager.GetAspectRatio();
   g_renderManager.GetVideoRect(info.SrcRect, info.DestRect);
@@ -4482,28 +4501,6 @@ bool COMXPlayer::Record(bool bOnOff)
     return true;
   }
   return false;
-}
-
-int COMXPlayer::GetPictureWidth()
-{
-  if (m_pDemuxer && (m_CurrentVideo.id != -1))
-  {
-    CDemuxStreamVideo* stream = static_cast<CDemuxStreamVideo*>(m_pDemuxer->GetStream(m_CurrentVideo.id));
-    if (stream)
-      return stream->iWidth;
-  }
-  return 0;
-}
-
-int COMXPlayer::GetPictureHeight()
-{
-  if (m_pDemuxer && (m_CurrentVideo.id != -1))
-  {
-    CDemuxStreamVideo* stream = static_cast<CDemuxStreamVideo*>(m_pDemuxer->GetStream(m_CurrentVideo.id));
-    if (stream)
-      return stream->iHeight;
-  }
-  return 0;
 }
 
 bool COMXPlayer::GetStreamDetails(CStreamDetails &details)
