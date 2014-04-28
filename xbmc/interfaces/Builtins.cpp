@@ -392,10 +392,6 @@ int CBuiltins::Execute(const CStdString& execString)
     {
       // disable the screensaver
       g_application.WakeUpScreenSaverAndDPMS();
-#if defined(TARGET_DARWIN_IOS)
-      if (params[0].Equals("shutdownmenu"))
-        CBuiltins::Execute("Quit");
-#endif     
       g_windowManager.ActivateWindow(iWindow, params, !execute.Equals("activatewindow"));
     }
     else
@@ -421,10 +417,6 @@ int CBuiltins::Execute(const CStdString& execString)
     {
       // disable the screensaver
       g_application.WakeUpScreenSaverAndDPMS();
-#if defined(TARGET_DARWIN_IOS)
-      if (params[0].Equals("shutdownmenu"))
-        CBuiltins::Execute("Quit");
-#endif
       vector<CStdString> dummy;
       g_windowManager.ActivateWindow(iWindow, dummy, !execute.Equals("activatewindowandfocus"));
 
@@ -560,44 +552,49 @@ int CBuiltins::Execute(const CStdString& execString)
     if (params.size())
     {
       AddonPtr addon;
-      if (CAddonMgr::Get().GetAddon(params[0],addon) && addon)
+      CStdString cmd;
+      if (CAddonMgr::Get().GetAddon(params[0],addon,ADDON_PLUGIN))
       {
         PluginPtr plugin = boost::dynamic_pointer_cast<CPluginSource>(addon);
-        CStdString cmd;
-        if (plugin && addon->Type() == ADDON_PLUGIN)
+        CStdString addonid = params[0];
+        CStdString urlParameters;
+        CStdStringArray parameters;
+        if (params.size() == 2 &&
+           (StringUtils::StartsWith(params[1], "/") || StringUtils::StartsWith(params[1], "?")))
+          urlParameters = params[1];
+        else if (params.size() > 1)
         {
-          CStdString addonid = params[0];
-          CStdString urlParameters;
-          CStdStringArray parameters;
-          if (params.size() == 2 &&
-             (StringUtils::StartsWith(params[1], "/") || StringUtils::StartsWith(params[1], "?")))
-            urlParameters = params[1];
-          else if (params.size() > 1)
-          {
-            parameters.insert(parameters.begin(), params.begin() + 1, params.end());
-            urlParameters = "?" + StringUtils::JoinString(parameters, "&");
-          }
-
-          if (plugin->Provides(CPluginSource::VIDEO))
-            cmd = StringUtils::Format("ActivateWindow(Video,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
-          else if (plugin->Provides(CPluginSource::AUDIO))
-            cmd = StringUtils::Format("ActivateWindow(Music,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
-          else if (plugin->Provides(CPluginSource::EXECUTABLE))
-            cmd = StringUtils::Format("ActivateWindow(Programs,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
-          else if (plugin->Provides(CPluginSource::IMAGE))
-            cmd = StringUtils::Format("ActivateWindow(Pictures,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
-          else
-            // Pass the script name (params[0]) and all the parameters
-            // (params[1] ... params[x]) separated by a comma to RunPlugin
-            cmd = StringUtils::Format("RunPlugin(%s)", StringUtils::JoinString(params, ",").c_str());
+          parameters.insert(parameters.begin(), params.begin() + 1, params.end());
+          urlParameters = "?" + StringUtils::JoinString(parameters, "&");
         }
-        else if (addon->Type() >= ADDON_SCRIPT && addon->Type() <= ADDON_SCRIPT_LYRICS)
-          // Pass the script name (params[0]) and all the parameters
-          // (params[1] ... params[x]) separated by a comma to RunScript
-          cmd = StringUtils::Format("RunScript(%s)", StringUtils::JoinString(params, ",").c_str());
+        else
+        {
+          // Add '/' if addon is run without params (will be removed later so it's safe)
+          // Otherwise there are 2 entries for the same plugin in ViewModesX.db
+          urlParameters = "/";
+        }
 
-        return Execute(cmd);
+        if (plugin->Provides(CPluginSource::VIDEO))
+          cmd = StringUtils::Format("ActivateWindow(Videos,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
+        else if (plugin->Provides(CPluginSource::AUDIO))
+          cmd = StringUtils::Format("ActivateWindow(Music,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
+        else if (plugin->Provides(CPluginSource::EXECUTABLE))
+          cmd = StringUtils::Format("ActivateWindow(Programs,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
+        else if (plugin->Provides(CPluginSource::IMAGE))
+          cmd = StringUtils::Format("ActivateWindow(Pictures,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
+        else
+          // Pass the script name (params[0]) and all the parameters
+          // (params[1] ... params[x]) separated by a comma to RunPlugin
+          cmd = StringUtils::Format("RunPlugin(%s)", StringUtils::JoinString(params, ",").c_str());
       }
+      else if (CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT) ||
+               CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_WEATHER) ||
+               CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LYRICS))
+        // Pass the script name (params[0]) and all the parameters
+        // (params[1] ... params[x]) separated by a comma to RunScript
+        cmd = StringUtils::Format("RunScript(%s)", StringUtils::JoinString(params, ",").c_str());
+
+      return Execute(cmd);
     }
     else
     {
@@ -678,7 +675,7 @@ int CBuiltins::Execute(const CStdString& execString)
       CFileItemList items;
       CStdString extensions = g_advancedSettings.m_videoExtensions + "|" + g_advancedSettings.m_musicExtensions;
       CDirectory::GetDirectory(item.GetPath(),items,extensions);
-      
+
       bool containsMusic = false, containsVideo = false;
       for (int i = 0; i < items.Size(); i++)
       {
@@ -689,7 +686,13 @@ int CBuiltins::Execute(const CStdString& execString)
         if (containsMusic && containsVideo)
           break;
       }
-      
+
+      CGUIViewState *state = CGUIViewState::GetViewState(containsVideo ? WINDOW_VIDEO_NAV : WINDOW_MUSIC, items);
+      if (state)
+        items.Sort(state->GetSortMethod());
+      else
+        items.Sort(SortByLabel, SortOrderAscending);
+
       int playlist = containsVideo? PLAYLIST_VIDEO : PLAYLIST_MUSIC;;
       if (containsMusic && containsVideo) //mixed content found in the folder
       {
@@ -1441,6 +1444,8 @@ int CBuiltins::Execute(const CStdString& execString)
     CStdString path;
     VECSOURCES shares;
     g_mediaManager.GetLocalDrives(shares);
+    g_mediaManager.GetNetworkLocations(shares);
+    g_mediaManager.GetRemovableDrives(shares);
     bool singleFile;
     bool thumbs=false;
     bool actorThumbs=false;

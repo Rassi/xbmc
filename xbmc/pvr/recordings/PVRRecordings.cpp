@@ -27,6 +27,7 @@
 #include "utils/log.h"
 #include "threads/SingleLock.h"
 #include "video/VideoDatabase.h"
+#include "settings/Settings.h"
 
 #include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
@@ -34,12 +35,12 @@
 #include "pvr/PVRManager.h"
 #include "pvr/addons/PVRClients.h"
 #include "PVRRecordings.h"
-#include "utils/StringUtils.h"
 
 using namespace PVR;
 
 CPVRRecordings::CPVRRecordings(void) :
-    m_bIsUpdating(false)
+    m_bIsUpdating(false),
+    m_iLastId(0)
 {
 
 }
@@ -92,7 +93,8 @@ bool CPVRRecordings::IsDirectoryMember(const CStdString &strDirectory, const CSt
   CStdString strUseDirectory = TrimSlashes(strDirectory);
   CStdString strUseEntryDirectory = TrimSlashes(strEntryDirectory);
 
-  return StringUtils::StartsWith(strUseEntryDirectory, strUseDirectory) &&
+  /* Case-insensitive comparison since sub folders are created with case-insensitive matching (GetSubDirectories) */
+  return StringUtils::StartsWithNoCase(strUseEntryDirectory, strUseDirectory) &&
       (!bDirectMember || strUseEntryDirectory.Equals(strUseDirectory));
 }
 
@@ -126,7 +128,7 @@ void CPVRRecordings::GetContents(const CStdString &strDirectory, CFileItemList *
   }
 }
 
-void CPVRRecordings::GetSubDirectories(const CStdString &strBase, CFileItemList *results, bool bAutoSkip /* = true */)
+void CPVRRecordings::GetSubDirectories(const CStdString &strBase, CFileItemList *results)
 {
   CStdString strUseBase = TrimSlashes(strBase);
 
@@ -186,7 +188,7 @@ void CPVRRecordings::GetSubDirectories(const CStdString &strBase, CFileItemList 
   CFileItemList files;
   GetContents(strBase, &files);
 
-  if (bAutoSkip && results->Size() == 1 && files.Size() == 0)
+  if (results->Size() == 1 && files.Size() == 0)
   {
     CStdString strGetPath = StringUtils::Format("%s/%s/", strUseBase.c_str(), results->Get(0)->GetLabel().c_str());
 
@@ -194,7 +196,7 @@ void CPVRRecordings::GetSubDirectories(const CStdString &strBase, CFileItemList 
 
     CLog::Log(LOGDEBUG, "CPVRRecordings - %s - '%s' only has 1 subdirectory, selecting that directory ('%s')",
         __FUNCTION__, strUseBase.c_str(), strGetPath.c_str());
-    GetSubDirectories(strGetPath, results, true);
+    GetSubDirectories(strGetPath, results);
     return;
   }
 
@@ -401,7 +403,7 @@ bool CPVRRecordings::GetDirectory(const CStdString& strPath, CFileItemList &item
     if (StringUtils::StartsWith(strFileName, "recordings"))
     {
       strFileName.erase(0, 10);
-      GetSubDirectories(strFileName, &items, true);
+      GetSubDirectories(strFileName, &items);
       bSuccess = true;
     }
   }
@@ -443,6 +445,19 @@ void CPVRRecordings::GetAll(CFileItemList &items)
 
     items.Add(pFileItem);
   }
+}
+
+CFileItemPtr CPVRRecordings::GetById(unsigned int iId) const
+{
+  CFileItemPtr item;
+  CSingleLock lock(m_critSection);
+  for (std::vector<CPVRRecording *>::const_iterator it = m_recordings.begin(); !item && it != m_recordings.end(); ++it)
+  {
+    if (iId == (*it)->m_iRecordingId)
+      item = CFileItemPtr(new CFileItem(**it));
+  }
+
+  return item;
 }
 
 CFileItemPtr CPVRRecordings::GetByPath(const CStdString &path)
@@ -499,6 +514,7 @@ void CPVRRecordings::UpdateEntry(const CPVRRecording &tag)
   {
     CPVRRecording *newTag = new CPVRRecording();
     newTag->Update(tag);
+    newTag->m_iRecordingId = ++m_iLastId;
     m_recordings.push_back(newTag);
   }
 }

@@ -1210,17 +1210,17 @@ void CGUIWindowVideoBase::GetContextButtons(int itemNumber, CContextButtons &but
             buttons.Add(CONTEXT_BUTTON_PLAY_PART, 20324);
         }
 
-        if (!m_vecItems->GetPath().empty() && !StringUtils::StartsWithNoCase(item->GetPath(), "newsmartplaylist://") && !StringUtils::StartsWithNoCase(item->GetPath(), "newtag://")
-            && !m_vecItems->IsSourcesPath())
-        {
-          buttons.Add(CONTEXT_BUTTON_QUEUE_ITEM, 13347);      // Add to Playlist
-        }
-
         // allow a folder to be ad-hoc queued and played by the default player
         if (item->m_bIsFolder || (item->IsPlayList() &&
            !g_advancedSettings.m_playlistAsFolders))
         {
           buttons.Add(CONTEXT_BUTTON_PLAY_ITEM, 208);
+        }
+
+        if (!m_vecItems->GetPath().empty() && !StringUtils::StartsWithNoCase(item->GetPath(), "newsmartplaylist://") && !StringUtils::StartsWithNoCase(item->GetPath(), "newtag://")
+            && !m_vecItems->IsSourcesPath())
+        {
+          buttons.Add(CONTEXT_BUTTON_QUEUE_ITEM, 13347);      // Add to Playlist
         }
       }
 
@@ -1371,7 +1371,18 @@ bool CGUIWindowVideoBase::OnContextButton(int itemNumber, CONTEXT_BUTTON button)
         CPlayerCoreFactory::Get().GetPlayers(*item, vecCores);
       g_application.m_eForcedNextPlayer = CPlayerCoreFactory::Get().SelectPlayerDialog(vecCores);
       if (g_application.m_eForcedNextPlayer != EPC_NONE)
-        OnClick(itemNumber);
+      {
+        // any other select actions but play or resume, resume, play or playpart
+        // don't make any sense here since the user already decided that he'd
+        // like to play the item (just with a specific player)
+        VideoSelectAction selectAction = (VideoSelectAction)CSettings::Get().GetInt("myvideos.selectaction");
+        if (selectAction != SELECT_ACTION_PLAY_OR_RESUME &&
+            selectAction != SELECT_ACTION_RESUME &&
+            selectAction != SELECT_ACTION_PLAY &&
+            selectAction != SELECT_ACTION_PLAYPART)
+          selectAction = SELECT_ACTION_PLAY_OR_RESUME;
+        return OnFileAction(itemNumber, selectAction);
+      }
       return true;
     }
 
@@ -1389,6 +1400,12 @@ bool CGUIWindowVideoBase::OnContextButton(int itemNumber, CONTEXT_BUTTON button)
   case CONTEXT_BUTTON_INFO:
     OnInfo(itemNumber);
     return true;
+
+  case CONTEXT_BUTTON_STOP_SCANNING:
+    {
+      g_application.StopVideoScan();
+      return true;
+    }
 
   case CONTEXT_BUTTON_SCAN:
     {

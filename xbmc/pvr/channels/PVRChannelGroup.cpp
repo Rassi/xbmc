@@ -255,31 +255,56 @@ void CPVRChannelGroup::SearchAndSetChannelIcons(bool bUpdateDb /* = false */)
   {
     PVRChannelGroupMember groupMember = m_members.at(ptr);
 
-    /* skip if an icon is already set */
-    if (!groupMember.channel->IconPath().empty())
+    /* skip if an icon is already set and exists */
+    if (groupMember.channel->IsIconExists())
       continue;
 
-    CStdString strBasePath = CSettings::Get().GetString("pvrmenu.iconpath");
-    CStdString strSanitizedChannelName = CUtil::MakeLegalFileName(groupMember.channel->ClientChannelName());
+    /* reset icon before searching for a new one */
+    groupMember.channel->SetIconPath(StringUtils::Empty);
 
-    CStdString strIconPath = strBasePath + strSanitizedChannelName;
-    StringUtils::ToLower(strSanitizedChannelName);
-    CStdString strIconPathLower = strBasePath + strSanitizedChannelName;
+    CStdString strBasePath = CSettings::Get().GetString("pvrmenu.iconpath");
+    CStdString strSanitizedClientChannelName = CUtil::MakeLegalFileName(groupMember.channel->ClientChannelName());
+    
+    CStdString strIconPath = strBasePath + strSanitizedClientChannelName;
+    StringUtils::ToLower(strSanitizedClientChannelName);
+    CStdString strIconPathLower = strBasePath + strSanitizedClientChannelName;
     CStdString strIconPathUid;
     strIconPathUid = StringUtils::Format("%08d", groupMember.channel->UniqueID());
     strIconPathUid = URIUtils::AddFileToFolder(strBasePath, strIconPathUid);
 
-    SetChannelIconPath(groupMember.channel, strIconPath      + ".tbn") ||
-    SetChannelIconPath(groupMember.channel, strIconPath      + ".jpg") ||
-    SetChannelIconPath(groupMember.channel, strIconPath      + ".png") ||
+    bool bIconFound =
+      SetChannelIconPath(groupMember.channel, strIconPath + ".tbn") ||
+      SetChannelIconPath(groupMember.channel, strIconPath + ".jpg") ||
+      SetChannelIconPath(groupMember.channel, strIconPath + ".png") ||
 
-    SetChannelIconPath(groupMember.channel, strIconPathLower + ".tbn") ||
-    SetChannelIconPath(groupMember.channel, strIconPathLower + ".jpg") ||
-    SetChannelIconPath(groupMember.channel, strIconPathLower + ".png") ||
+      SetChannelIconPath(groupMember.channel, strIconPathLower + ".tbn") ||
+      SetChannelIconPath(groupMember.channel, strIconPathLower + ".jpg") ||
+      SetChannelIconPath(groupMember.channel, strIconPathLower + ".png") ||
 
-    SetChannelIconPath(groupMember.channel, strIconPathUid   + ".tbn") ||
-    SetChannelIconPath(groupMember.channel, strIconPathUid   + ".jpg") ||
-    SetChannelIconPath(groupMember.channel, strIconPathUid   + ".png");
+      SetChannelIconPath(groupMember.channel, strIconPathUid + ".tbn") ||
+      SetChannelIconPath(groupMember.channel, strIconPathUid + ".jpg") ||
+      SetChannelIconPath(groupMember.channel, strIconPathUid + ".png");
+
+    // lets do the same with the db channel name if those are different
+    if (!bIconFound)
+    {
+      CStdString strSanitizedChannelName = CUtil::MakeLegalFileName(groupMember.channel->ChannelName());
+      CStdString strIconPath2 = strBasePath + strSanitizedChannelName;
+      CStdString strSanitizedLowerChannelName = strSanitizedChannelName;
+      StringUtils::ToLower(strSanitizedLowerChannelName);
+      CStdString strIconPathLower2 = strBasePath + strSanitizedLowerChannelName;
+
+      if (strIconPathLower != strIconPathLower2)
+      {
+        SetChannelIconPath(groupMember.channel, strIconPath2 + ".tbn") ||
+        SetChannelIconPath(groupMember.channel, strIconPath2 + ".jpg") ||
+        SetChannelIconPath(groupMember.channel, strIconPath2 + ".png") ||
+
+        SetChannelIconPath(groupMember.channel, strIconPathLower2 + ".tbn") ||
+        SetChannelIconPath(groupMember.channel, strIconPathLower2 + ".jpg") ||
+        SetChannelIconPath(groupMember.channel, strIconPathLower2 + ".png");
+      } 
+    }
 
     if (bUpdateDb)
       groupMember.channel->Persist();
@@ -1118,6 +1143,50 @@ int CPVRChannelGroup::GetEPGAll(CFileItemList &results)
   return results.Size() - iInitialSize;
 }
 
+CDateTime CPVRChannelGroup::GetEPGDate(EpgDateType epgDateType) const
+{
+  CDateTime date;
+  CSingleLock lock(m_critSection);
+  
+  for (std::vector<PVRChannelGroupMember>::const_iterator it = m_members.begin(); it != m_members.end(); it++)
+  {
+    if (it->channel && !it->channel->IsHidden())
+    {
+      CEpg* epg = it->channel->GetEPG();
+      if (epg)
+      {
+        CDateTime epgDate;
+        switch (epgDateType)
+        {
+          case EPG_FIRST_DATE:
+            epgDate = epg->GetFirstDate();
+            if (epgDate.IsValid() && (!date.IsValid() || epgDate < date))
+              date = epgDate;
+            break;
+            
+          case EPG_LAST_DATE:
+            epgDate = epg->GetLastDate();
+            if (epgDate.IsValid() && (!date.IsValid() || epgDate > date))
+              date = epgDate;
+            break;
+        }
+      }
+    }
+  }
+  
+  return date;
+}
+
+CDateTime CPVRChannelGroup::GetFirstEPGDate(void) const
+{
+  return GetEPGDate(EPG_FIRST_DATE);
+}
+
+CDateTime CPVRChannelGroup::GetLastEPGDate(void) const
+{
+  return GetEPGDate(EPG_LAST_DATE);
+}
+
 int CPVRChannelGroup::Size(void) const
 {
   return m_members.size();
@@ -1163,7 +1232,7 @@ void CPVRChannelGroup::SetPreventSortAndRenumber(bool bPreventSortAndRenumber /*
   m_bPreventSortAndRenumber = bPreventSortAndRenumber;
 }
 
-bool CPVRChannelGroup::UpdateChannel(const CFileItem &item, bool bHidden, bool bVirtual, bool bEPGEnabled, bool bParentalLocked, int iEPGSource, int iChannelNumber, const CStdString &strChannelName, const CStdString &strIconPath, const CStdString &strStreamURL)
+bool CPVRChannelGroup::UpdateChannel(const CFileItem &item, bool bHidden, bool bVirtual, bool bEPGEnabled, bool bParentalLocked, int iEPGSource, int iChannelNumber, const CStdString &strChannelName, const CStdString &strIconPath, const CStdString &strStreamURL, bool bUserSetIcon)
 {
   if (!item.HasPVRChannelInfoTag())
     return false;
@@ -1178,7 +1247,7 @@ bool CPVRChannelGroup::UpdateChannel(const CFileItem &item, bool bHidden, bool b
   channel->SetChannelName(strChannelName);
   channel->SetHidden(bHidden);
   channel->SetLocked(bParentalLocked);
-  channel->SetIconPath(strIconPath);
+  channel->SetIconPath(strIconPath, bUserSetIcon);
 
   if (bVirtual)
     channel->SetStreamURL(strStreamURL);

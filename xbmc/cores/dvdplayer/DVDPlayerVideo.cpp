@@ -256,6 +256,7 @@ void CDVDPlayerVideo::OpenStream(CDVDStreamInfo &hint, CDVDVideoCodec* codec)
   m_stalled = m_messageQueue.GetPacketCount(CDVDMsg::DEMUXER_PACKET) == 0;
   m_started = false;
   m_codecname = m_pVideoCodec->GetName();
+  m_packets.clear();
 }
 
 void CDVDPlayerVideo::CloseStream(bool bWaitForBuffers)
@@ -939,7 +940,7 @@ void CDVDPlayerVideo::ProcessOverlays(DVDVideoPicture* pSource, double pts)
     VecOverlaysIter it = pVecOverlays->begin();
 
     //Check all overlays and render those that should be rendered, based on time and forced
-    //Both forced and subs should check timeing, pts == 0 in the stillframe case
+    //Both forced and subs should check timing
     while (it != pVecOverlays->end())
     {
       CDVDOverlay* pOverlay = *it++;
@@ -948,7 +949,7 @@ void CDVDPlayerVideo::ProcessOverlays(DVDVideoPicture* pSource, double pts)
 
       double pts2 = pOverlay->bForced ? pts : pts - m_iSubtitleDelay;
 
-      if((pOverlay->iPTSStartTime <= pts2 && (pOverlay->iPTSStopTime > pts2 || pOverlay->iPTSStopTime == 0LL)) || pts == 0)
+      if((pOverlay->iPTSStartTime <= pts2 && (pOverlay->iPTSStopTime > pts2 || pOverlay->iPTSStopTime == 0LL)))
       {
         if(pOverlay->IsOverlayType(DVDOVERLAY_TYPE_GROUP))
           overlays.insert(overlays.end(), static_cast<CDVDOverlayGroup*>(pOverlay)->m_overlays.begin()
@@ -1156,11 +1157,9 @@ int CDVDPlayerVideo::OutputPicture(const DVDVideoPicture* src, double pts)
     iFrameSleep = 0;
   }
 
-  // dropping to a very low framerate is not correct (it should not happen at all)
-  iClockSleep = min(iClockSleep, DVD_MSEC_TO_TIME(500));
-  iFrameSleep = min(iFrameSleep, DVD_MSEC_TO_TIME(500));
-
-  if( m_stalled )
+  if( m_started == false )
+    iSleepTime = 0.0;
+  else if( m_stalled )
     iSleepTime = iFrameSleep;
   else
     iSleepTime = iClockSleep;
@@ -1217,7 +1216,7 @@ int CDVDPlayerVideo::OutputPicture(const DVDVideoPicture* src, double pts)
 
   AutoCrop(pPicture);
 
-  int buffer = g_renderManager.WaitForBuffer(m_bStop, std::max(DVD_TIME_TO_MSEC(iSleepTime) + 500, 0));
+  int buffer = g_renderManager.WaitForBuffer(m_bStop, std::max(DVD_TIME_TO_MSEC(iSleepTime) + 500, 1));
   if (buffer < 0)
     return EOS_DROPPED;
 

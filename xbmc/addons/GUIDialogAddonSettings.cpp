@@ -251,7 +251,7 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
             bEncoded = (strstr(option, "urlencoded") != NULL);
           }
           if (bEncoded)
-            CURL::Decode(value);
+            value = CURL::Decode(value);
 
           if (CGUIKeyboardFactory::ShowAndGetInput(value, label, true, bHidden))
           {
@@ -265,7 +265,7 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
             else
               ((CGUIButtonControl*) control)->SetLabel2(value);
             if (bEncoded)
-              CURL::Encode(value);
+              value = CURL::Encode(value);
           }
         }
         else if (strcmp(type, "number") == 0 && CGUIDialogNumeric::ShowAndGetNumber(value, label))
@@ -708,7 +708,7 @@ void CGUIDialogAddonSettings::CreateControls()
           // get any option to test for hidden
           const char *option = setting->Attribute("option");
           if (option && (strstr(option, "urlencoded")))
-            CURL::Decode(value);
+            value = CURL::Decode(value);
           if (option && (strstr(option, "hidden")))
           {
             CStdString hiddenText;
@@ -873,11 +873,11 @@ void CGUIDialogAddonSettings::CreateControls()
         int iType=0;
 
         if (option.size() == 0 || StringUtils::EqualsNoCase(option, "float"))
-          iType = SPIN_CONTROL_TYPE_FLOAT;
+          iType = SLIDER_CONTROL_TYPE_FLOAT;
         else if (StringUtils::EqualsNoCase(option, "int"))
-          iType = SPIN_CONTROL_TYPE_INT;
+          iType = SLIDER_CONTROL_TYPE_INT;
         else if (StringUtils::EqualsNoCase(option, "percent"))
-          iType = 0;
+          iType = SLIDER_CONTROL_TYPE_PERCENTAGE;
 
         ((CGUISettingsSliderControl *)pControl)->SetType(iType);
         ((CGUISettingsSliderControl *)pControl)->SetFloatRange(fMin, fMax);

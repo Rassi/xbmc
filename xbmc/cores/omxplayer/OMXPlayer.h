@@ -148,14 +148,6 @@ public:
     return streams;
   }
 
-  template<typename Filter>
-  OMXSelectionStreams RemoveIf(StreamType type, Filter filter)
-  {
-    OMXSelectionStreams streams = Get(type);
-    streams.erase(std::remove_if(streams.begin(), streams.end(), filter), streams.end());
-    return streams;
-  }
-
   void             Clear   (StreamType type, StreamSource source);
   int              Source  (StreamSource source, std::string filename);
 
@@ -177,7 +169,7 @@ public:
   virtual ~COMXPlayer();
   
   virtual bool  OpenFile(const CFileItem &file, const CPlayerOptions &options);
-  virtual bool  CloseFile();
+  virtual bool  CloseFile(bool reopen = false);
   virtual bool  IsPlaying() const;
   virtual void  Pause();
   virtual bool  IsPaused() const;
@@ -306,6 +298,7 @@ protected:
   bool ShowPVRChannelInfo();
 
   int  AddSubtitleFile(const std::string& filename, const std::string& subfilename = "", CDemuxStream::EFlags flags = CDemuxStream::FLAG_NONE);
+  void SetSubtitleVisibleInternal(bool bVisible);
 
   /**
    * one of the DVD_PLAYSPEED defines

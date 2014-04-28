@@ -212,19 +212,30 @@ bool CGUIControlFactory::GetDimension(const TiXmlNode *pRootNode, const char* st
     if (!min) min = 1;
     return true;
   }
-  value = (float)atof(pNode->FirstChild()->Value());
+  value = ParsePosition(pNode->FirstChild()->Value(), parentSize);
   return true;
 }
 
-bool CGUIControlFactory::GetDimensions(const TiXmlNode *node, const char *leftTag, const char *rightTag, const char *centerTag,
-                                       const char *widthTag, const float parentSize, float &left, float &width, float &min_width)
+bool CGUIControlFactory::GetDimensions(const TiXmlNode *node, const char *leftTag, const char *rightTag, const char *centerLeftTag,
+                                       const char *centerRightTag, const char *widthTag, const float parentSize, float &left,
+                                       float &width, float &min_width)
 {
   float center = 0, right = 0;
 
   // read from the XML
   bool hasLeft = GetPosition(node, leftTag, parentSize, left);
-  bool hasCenter = GetPosition(node, centerTag, parentSize, center);
-  bool hasRight = GetPosition(node, rightTag, parentSize, right);
+  bool hasCenter = GetPosition(node, centerLeftTag, parentSize, center);
+  if (!hasCenter && GetPosition(node, centerRightTag, parentSize, center))
+  {
+    center = parentSize - center;
+    hasCenter = true;
+  }
+  bool hasRight = false;
+  if (GetPosition(node, rightTag, parentSize, right))
+  {
+    right = parentSize - right;
+    hasRight = true;
+  }
   bool hasWidth = GetDimension(node, widthTag, parentSize, width, min_width);
 
   if (!hasLeft)
@@ -241,7 +252,7 @@ bool CGUIControlFactory::GetDimensions(const TiXmlNode *node, const char *leftTa
         if (hasRight)
         {
           width = (right - center) * 2;
-          left = right - center;
+          left = right - width;
           hasLeft = true;
         }
       }
@@ -786,7 +797,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
   // such as buttons etc.  For labels/fadelabels/images it does not matter
 
   GetAlignment(pControlNode, "align", labelInfo.align);
-  if (!GetDimensions(pControlNode, "left", "right", "centerx", "width", rect.Width(), posX, width, minWidth))
+  if (!GetDimensions(pControlNode, "left", "right", "centerleft", "centerright", "width", rect.Width(), posX, width, minWidth))
   { // didn't get 2 dimensions, so test for old <posx> as well
     if (GetPosition(pControlNode, "posx", rect.Width(), posX))
     { // <posx> available, so use it along with any hacks we used to support
@@ -795,10 +806,10 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
           (labelInfo.align & XBFONT_RIGHT))
         posX -= width;
     }
-    if (!width)
+    if (!width) // no width specified, so compute from parent
       width = max(rect.Width() - posX, 0.0f);
   }
-  if (!GetDimensions(pControlNode, "top", "bottom", "centery", "height", rect.Height(), posY, height, minHeight))
+  if (!GetDimensions(pControlNode, "top", "bottom", "centertop", "centerbottom", "height", rect.Height(), posY, height, minHeight))
   {
     GetPosition(pControlNode, "posy", rect.Height(), posY);
     if (!height)
@@ -1254,7 +1265,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
   {
     control = new CGUISliderControl(
       parentID, id, posX, posY, width, height,
-      textureBar, textureNib, textureNibFocus, SPIN_CONTROL_TYPE_TEXT);
+      textureBar, textureNib, textureNibFocus, SLIDER_CONTROL_TYPE_PERCENTAGE);
 
     ((CGUISliderControl *)control)->SetInfo(singleInfo);
     ((CGUISliderControl *)control)->SetAction(action);
@@ -1263,7 +1274,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
   {
     control = new CGUISettingsSliderControl(
       parentID, id, posX, posY, width, height, sliderWidth, sliderHeight, textureFocus, textureNoFocus,
-      textureBar, textureNib, textureNibFocus, labelInfo, SPIN_CONTROL_TYPE_TEXT);
+      textureBar, textureNib, textureNibFocus, labelInfo, SLIDER_CONTROL_TYPE_PERCENTAGE);
 
     ((CGUISettingsSliderControl *)control)->SetText(strLabel);
     ((CGUISettingsSliderControl *)control)->SetInfo(singleInfo);
@@ -1317,6 +1328,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
     ((CGUIListContainer *)control)->SetType(viewType, viewLabel);
     ((CGUIListContainer *)control)->SetPageControl(pageControl);
     ((CGUIListContainer *)control)->SetRenderOffset(offset);
+    ((CGUIListContainer *)control)->SetAutoScrolling(pControlNode);
   }
   else if (type == CGUIControl::GUICONTAINER_WRAPLIST)
   {
@@ -1329,6 +1341,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
     ((CGUIWrappingListContainer *)control)->SetType(viewType, viewLabel);
     ((CGUIWrappingListContainer *)control)->SetPageControl(pageControl);
     ((CGUIWrappingListContainer *)control)->SetRenderOffset(offset);
+    ((CGUIWrappingListContainer *)control)->SetAutoScrolling(pControlNode);
   }
   else if (type == CGUIControl::GUICONTAINER_EPGGRID)
   {
@@ -1348,6 +1361,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
     ((CGUIFixedListContainer *)control)->SetType(viewType, viewLabel);
     ((CGUIFixedListContainer *)control)->SetPageControl(pageControl);
     ((CGUIFixedListContainer *)control)->SetRenderOffset(offset);
+    ((CGUIFixedListContainer *)control)->SetAutoScrolling(pControlNode);
   }
   else if (type == CGUIControl::GUICONTAINER_PANEL)
   {
@@ -1360,6 +1374,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
     ((CGUIPanelContainer *)control)->SetType(viewType, viewLabel);
     ((CGUIPanelContainer *)control)->SetPageControl(pageControl);
     ((CGUIPanelContainer *)control)->SetRenderOffset(offset);
+    ((CGUIPanelContainer *)control)->SetAutoScrolling(pControlNode);
   }
   else if (type == CGUIControl::GUICONTROL_TEXTBOX)
   {
@@ -1371,6 +1386,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID, const CRect &rect, TiXmlEl
     if (infoLabels.size())
       ((CGUITextBox *)control)->SetInfo(infoLabels[0]);
     ((CGUITextBox *)control)->SetAutoScrolling(pControlNode);
+    ((CGUITextBox *)control)->SetMinHeight(minHeight);
   }
   else if (type == CGUIControl::GUICONTROL_SELECTBUTTON)
   {

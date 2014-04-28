@@ -151,6 +151,8 @@ CFileItem::CFileItem(const CEpgInfoTag& tag)
 
   if (!tag.Icon().empty())
     SetIconImage(tag.Icon());
+  else if (tag.HasPVRChannel() && !tag.ChannelTag()->IconPath().empty())
+    SetIconImage(tag.ChannelTag()->IconPath());
 
   FillInMimeType(false);
 }
@@ -683,6 +685,7 @@ void CFileItem::Serialize(CVariant& value) const
 
   value["strPath"] = m_strPath;
   value["dateTime"] = (m_dateTime.IsValid()) ? m_dateTime.GetAsRFC1123DateTime() : "";
+  value["lastmodified"] = m_dateTime.IsValid() ? m_dateTime.GetAsDBDateTime() : "";
   value["size"] = m_dwSize;
   value["DVDLabel"] = m_strDVDLabel;
   value["title"] = m_strTitle;
@@ -1182,14 +1185,12 @@ bool CFileItem::IsHD() const
 
 bool CFileItem::IsMusicDb() const
 {
-  CURL url(m_strPath);
-  return url.GetProtocol().Equals("musicdb");
+  return URIUtils::IsMusicDb(m_strPath);
 }
 
 bool CFileItem::IsVideoDb() const
 {
-  CURL url(m_strPath);
-  return url.GetProtocol().Equals("videodb");
+  return URIUtils::IsVideoDb(m_strPath);
 }
 
 bool CFileItem::IsVirtualDirectoryRoot() const
@@ -1375,6 +1376,7 @@ bool CFileItem::IsParentFolder() const
 
 void CFileItem::FillInMimeType(bool lookup /*= true*/)
 {
+  // TODO: adapt this to use CMime::GetMimeType()
   if (m_mimetype.empty())
   {
     if( m_bIsFolder )
@@ -1428,6 +1430,12 @@ bool CFileItem::IsSamePath(const CFileItem *item) const
       return (item->GetProperty("item_start") == GetProperty("item_start"));
     return true;
   }
+  if (HasVideoInfoTag() && item->HasVideoInfoTag())
+  {
+    if (m_videoInfoTag->m_iDbId != -1 && item->m_videoInfoTag->m_iDbId != -1)
+      return ((m_videoInfoTag->m_iDbId == item->m_videoInfoTag->m_iDbId) &&
+        (m_videoInfoTag->m_type == item->m_videoInfoTag->m_type));        
+  }
   if (IsMusicDb() && HasMusicInfoTag())
   {
     CFileItem dbItem(m_musicInfoTag->GetURL(), false);
@@ -1475,12 +1483,18 @@ void CFileItem::UpdateInfo(const CFileItem &item, bool replaceLabels /*=true*/)
     if (HasPVRRecordingInfoTag())
       GetPVRRecordingInfoTag()->CopyClientInfo(GetVideoInfoTag());
     SetOverlayImage(ICON_OVERLAY_UNWATCHED, GetVideoInfoTag()->m_playCount > 0);
+    SetInvalid();
   }
   if (item.HasMusicInfoTag())
+  {
     *GetMusicInfoTag() = *item.GetMusicInfoTag();
+    SetInvalid();
+  }
   if (item.HasPictureInfoTag())
+  {
     *GetPictureInfoTag() = *item.GetPictureInfoTag();
-
+    SetInvalid();
+  }
   if (replaceLabels && !item.GetLabel().empty())
     SetLabel(item.GetLabel());
   if (replaceLabels && !item.GetLabel2().empty())
@@ -2322,7 +2336,7 @@ void CFileItemList::StackFolders()
 {
   // Precompile our REs
   VECCREGEXP folderRegExps;
-  CRegExp folderRegExp(true, true);
+  CRegExp folderRegExp(true, CRegExp::autoUtf8);
   const CStdStringArray& strFolderRegExps = g_advancedSettings.m_folderStackRegExps;
 
   CStdStringArray::const_iterator strExpression = strFolderRegExps.begin();
@@ -2414,7 +2428,7 @@ void CFileItemList::StackFiles()
 {
   // Precompile our REs
   VECCREGEXP stackRegExps;
-  CRegExp tmpRegExp(true, true);
+  CRegExp tmpRegExp(true, CRegExp::autoUtf8);
   const CStdStringArray& strStackRegExps = g_advancedSettings.m_videoStackRegExps;
   CStdStringArray::const_iterator strRegExp = strStackRegExps.begin();
   while (strRegExp != strStackRegExps.end())
@@ -2457,7 +2471,7 @@ void CFileItemList::StackFiles()
 
     URIUtils::Split(item1->GetPath(), filePath, file1);
     if (URIUtils::ProtocolHasEncodedFilename(CURL(filePath).GetProtocol() ) )
-      CURL::Decode(file1);
+      file1 = CURL::Decode(file1);
 
     int j;
     while (expr != stackRegExps.end())
@@ -2490,7 +2504,7 @@ void CFileItemList::StackFiles()
           CStdString file2, filePath2;
           URIUtils::Split(item2->GetPath(), filePath2, file2);
           if (URIUtils::ProtocolHasEncodedFilename(CURL(filePath2).GetProtocol() ) )
-            CURL::Decode(file2);
+            file2 = CURL::Decode(file2);
 
           if (expr->RegFind(file2, offset) != -1)
           {
@@ -2765,21 +2779,25 @@ CStdString CFileItem::GetTBNFile() const
   return thumbFile;
 }
 
+bool CFileItem::SkipLocalArt() const
+{
+  return (m_strPath.empty()
+       || StringUtils::StartsWithNoCase(m_strPath, "newsmartplaylist://")
+       || StringUtils::StartsWithNoCase(m_strPath, "newplaylist://")
+       || m_bIsShareOrDrive
+       || IsInternetStream()
+       || URIUtils::IsUPnP(m_strPath)
+       || (URIUtils::IsFTP(m_strPath) && !g_advancedSettings.m_bFTPThumbs)
+       || IsPlugin()
+       || IsAddonsPath()
+       || IsParentFolder()
+       || IsLiveTV()
+       || IsDVD());
+}
+
 CStdString CFileItem::FindLocalArt(const std::string &artFile, bool useFolder) const
 {
-  // ignore a bunch that are meaningless
-  if (m_strPath.empty()
-   || StringUtils::StartsWithNoCase(m_strPath, "newsmartplaylist://")
-   || StringUtils::StartsWithNoCase(m_strPath, "newplaylist://")
-   || m_bIsShareOrDrive
-   || IsInternetStream()
-   || URIUtils::IsUPnP(m_strPath)
-   || (URIUtils::IsFTP(m_strPath) && !g_advancedSettings.m_bFTPThumbs)
-   || IsPlugin()
-   || IsAddonsPath()
-   || IsParentFolder()
-   || IsLiveTV()
-   || IsDVD())
+  if (SkipLocalArt())
     return "";
 
   CStdString thumb;
@@ -2890,10 +2908,8 @@ CStdString CFileItem::GetMovieName(bool bUseFolderNames /* = false */) const
     strMovieName = CStackDirectory::GetStackedTitlePath(strMovieName);
 
   URIUtils::RemoveSlashAtEnd(strMovieName);
-  strMovieName = URIUtils::GetFileName(strMovieName);
-  CURL::Decode(strMovieName);
 
-  return strMovieName;
+  return CURL::Decode(URIUtils::GetFileName(strMovieName));
 }
 
 CStdString CFileItem::GetBaseMoviePath(bool bUseFolderNames) const
@@ -3233,14 +3249,14 @@ CStdString CFileItem::FindTrailer() const
 
   CStdString strDir = URIUtils::GetDirectory(strFile);
   CFileItemList items;
-  CDirectory::GetDirectory(strDir, items, g_advancedSettings.m_videoExtensions, DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO);
+  CDirectory::GetDirectory(strDir, items, g_advancedSettings.m_videoExtensions, DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO | DIR_FLAG_NO_FILE_DIRS);
   URIUtils::RemoveExtension(strFile);
   strFile += "-trailer";
   CStdString strFile3 = URIUtils::AddFileToFolder(strDir, "movie-trailer");
 
   // Precompile our REs
   VECCREGEXP matchRegExps;
-  CRegExp tmpRegExp(true, true);
+  CRegExp tmpRegExp(true, CRegExp::autoUtf8);
   const CStdStringArray& strMatchRegExps = g_advancedSettings.m_trailerMatchRegExps;
 
   CStdStringArray::const_iterator strRegExp = strMatchRegExps.begin();

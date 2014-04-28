@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://www.xbmc.org
+ *      http://xbmc.org
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -58,6 +58,8 @@ static bool CanSurfaceRenderWhiteList(const std::string &name)
     "OMX.Nvidia",
     "OMX.rk",
     "OMX.qcom",
+    "OMX.Intel",
+    "OMX.Exynos",
     NULL
   };
   for (const char **ptr = cansurfacerender_decoders; *ptr; ptr++)
@@ -73,6 +75,16 @@ static bool IsBlacklisted(const std::string &name)
   static const char *blacklisted_decoders[] = {
     // No software decoders
     "OMX.google",
+    // For Rockchip non-standard components
+    "AVCDecoder",
+    "AVCDecoder_FLASH",
+    "FLVDecoder",
+    "M2VDecoder",
+    "M4vH263Decoder",
+    "RVDecoder",
+    "VC1Decoder",
+    "VPXDecoder",
+    // End of Rockchip
     NULL
   };
   for (const char **ptr = blacklisted_decoders; *ptr; ptr++)
@@ -150,6 +162,7 @@ CDVDMediaCodecInfo::CDVDMediaCodecInfo(
 )
 : m_refs(1)
 , m_valid(true)
+, m_isReleased(true)
 , m_index(index)
 , m_texture(texture)
 , m_timestamp(0)
@@ -173,6 +186,7 @@ CDVDMediaCodecInfo::~CDVDMediaCodecInfo()
 CDVDMediaCodecInfo* CDVDMediaCodecInfo::Retain()
 {
   AtomicIncrement(&m_refs);
+  m_isReleased = false;
 
   return this;
 }
@@ -180,11 +194,10 @@ CDVDMediaCodecInfo* CDVDMediaCodecInfo::Retain()
 long CDVDMediaCodecInfo::Release()
 {
   long count = AtomicDecrement(&m_refs);
-  if (count == 0)
-  {
+  if (count == 1)
     ReleaseOutputBuffer(false);
+  if (count == 0)
     delete this;
-  }
 
   return count;
 }
@@ -200,7 +213,7 @@ void CDVDMediaCodecInfo::ReleaseOutputBuffer(bool render)
 {
   CSingleLock lock(m_section);
 
-  if (!m_valid)
+  if (!m_valid || m_isReleased)
     return;
 
   // release OutputBuffer and render if indicated
@@ -210,6 +223,7 @@ void CDVDMediaCodecInfo::ReleaseOutputBuffer(bool render)
     m_frameready->Reset();
 
   m_codec->releaseOutputBuffer(m_index, render);
+  m_isReleased = true;
 
   if (xbmc_jnienv()->ExceptionOccurred())
   {
@@ -261,8 +275,8 @@ void CDVDMediaCodecInfo::UpdateTexImage()
   // wait, then video playback gets jerky. To optomize this,
   // we hook the SurfaceTexture OnFrameAvailable callback
   // using CJNISurfaceTextureOnFrameAvailableListener and wait
-  // on a CEvent to fire. 20ms seems to be a good max fallback.
-  m_frameready->WaitMSec(20);
+  // on a CEvent to fire. 50ms seems to be a good max fallback.
+  m_frameready->WaitMSec(50);
 
   m_surfacetexture->updateTexImage();
   if (xbmc_jnienv()->ExceptionOccurred())
@@ -336,11 +350,15 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
     case AV_CODEC_ID_H264:
       m_mime = "video/avc";
       m_formatname = "amc-h264";
-      m_bitstream = new CBitstreamConverter;
-      if (!m_bitstream->Open(m_hints.codec, (uint8_t*)m_hints.extradata, m_hints.extrasize, true))
+      // check for h264-avcC and convert to h264-annex-b
+      if (m_hints.extradata && *(uint8_t*)m_hints.extradata == 1)
       {
-        SAFE_DELETE(m_bitstream);
-        return false;
+        m_bitstream = new CBitstreamConverter;
+        if (!m_bitstream->Open(m_hints.codec, (uint8_t*)m_hints.extradata, m_hints.extrasize, true))
+        {
+          SAFE_DELETE(m_bitstream);
+          return false;
+        }
       }
       break;
     case AV_CODEC_ID_VC1:
@@ -358,7 +376,7 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
   // CJNIMediaCodec::createDecoderByXXX doesn't handle errors nicely,
   // it crashes if the codec isn't found. This is fixed in latest AOSP,
   // but not in current 4.1 devices. So 1st search for a matching codec, then create it.
-  bool hasSupportedColorFormat = false;
+  m_colorFormat = -1;
   int num_codecs = CJNIMediaCodecList::getCodecCount();
   for (int i = 0; i < num_codecs; i++)
   {
@@ -388,13 +406,13 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
           m_codec.reset();
           continue;
         }
-        hasSupportedColorFormat = false;
+
         for (size_t k = 0; k < color_formats.size(); ++k)
         {
           CLog::Log(LOGDEBUG, "CDVDVideoCodecAndroidMediaCodec::Open "
             "m_codecname(%s), colorFormat(%d)", m_codecname.c_str(), color_formats[k]);
           if (IsSupportedColorFormat(color_formats[k]))
-            hasSupportedColorFormat = true;
+            m_colorFormat = color_formats[k]; // Save color format for initial output configuration
         }
         break;
       }
@@ -413,7 +431,7 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
   m_render_sw = !CanSurfaceRenderWhiteList(m_codecname);
   if (m_render_sw)
   {
-    if (!hasSupportedColorFormat)
+    if (m_colorFormat == -1)
     {
       CLog::Log(LOGERROR, "CDVDVideoCodecAndroidMediaCodec:: No supported color format");
       m_codec.reset();
@@ -421,8 +439,6 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
       return false;
     }
   }
-
-  ConfigureMediaCodec();
 
   // setup a YUV420P DVDVideoPicture buffer.
   // first make sure all properties are reset.
@@ -438,6 +454,13 @@ bool CDVDVideoCodecAndroidMediaCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptio
   // these will get reset to crop values later
   m_videobuffer.iDisplayWidth  = m_hints.width;
   m_videobuffer.iDisplayHeight = m_hints.height;
+
+  if (!ConfigureMediaCodec())
+  {
+    m_codec.reset();
+    SAFE_DELETE(m_bitstream);
+    return false;
+  }
 
   CLog::Log(LOGINFO, "CDVDVideoCodecAndroidMediaCodec:: "
     "Open Android MediaCodec %s", m_codecname.c_str());
@@ -687,7 +710,7 @@ void CDVDVideoCodecAndroidMediaCodec::FlushInternal()
   }
 }
 
-void CDVDVideoCodecAndroidMediaCodec::ConfigureMediaCodec(void)
+bool CDVDVideoCodecAndroidMediaCodec::ConfigureMediaCodec(void)
 {
   // setup a MediaFormat to match the video content,
   // used by codec during configure
@@ -736,12 +759,27 @@ void CDVDVideoCodecAndroidMediaCodec::ConfigureMediaCodec(void)
   {
     m_codec->configure(mediaformat, *m_surface, crypto, flags);
   }
-
-  m_codec->start();
-
   // always, check/clear jni exceptions.
   if (xbmc_jnienv()->ExceptionOccurred())
+  {
     xbmc_jnienv()->ExceptionClear();
+    return false;
+  }
+
+
+  m_codec->start();
+  // always, check/clear jni exceptions.
+  if (xbmc_jnienv()->ExceptionOccurred())
+  {
+    xbmc_jnienv()->ExceptionClear();
+    return false;
+  }
+
+  // There is no guarantee we'll get an INFO_OUTPUT_FORMAT_CHANGED (up to Android 4.3)
+  // Configure the output with defaults
+  ConfigureOutputFormat(&mediaformat);
+
+  return true;
 }
 
 int CDVDVideoCodecAndroidMediaCodec::GetOutputPicture(void)
@@ -821,8 +859,11 @@ int CDVDVideoCodecAndroidMediaCodec::GetOutputPicture(void)
           if (i > 0)
             height = (m_videobuffer.iHeight + 1) / 2;
 
-          for (int j = 0; j < height; j++, src += src_stride, dst += dst_stride)
-            memcpy(dst, src, dst_stride);
+          if (src_stride == dst_stride)
+            memcpy(dst, src, dst_stride * height);
+          else
+            for (int j = 0; j < height; j++, src += src_stride, dst += dst_stride)
+              memcpy(dst, src, dst_stride);
         }
       }
       m_codec->releaseOutputBuffer(index, false);
@@ -851,7 +892,8 @@ int CDVDVideoCodecAndroidMediaCodec::GetOutputPicture(void)
   }
   else if (index == CJNIMediaCodec::INFO_OUTPUT_FORMAT_CHANGED)
   {
-    OutputFormatChanged();
+    CJNIMediaFormat mediaformat = m_codec->getOutputFormat();
+    ConfigureOutputFormat(&mediaformat);
   }
   else if (index == CJNIMediaCodec::INFO_TRY_AGAIN_LATER)
   {
@@ -867,19 +909,36 @@ int CDVDVideoCodecAndroidMediaCodec::GetOutputPicture(void)
   return rtn;
 }
 
-void CDVDVideoCodecAndroidMediaCodec::OutputFormatChanged(void)
+void CDVDVideoCodecAndroidMediaCodec::ConfigureOutputFormat(CJNIMediaFormat* mediaformat)
 {
-  CJNIMediaFormat mediaformat = m_codec->getOutputFormat();
+  int width       = 0;
+  int height      = 0;
+  int stride      = 0;
+  int slice_height= 0;
+  int color_format= 0;
+  int crop_left   = 0;
+  int crop_top    = 0;
+  int crop_right  = 0;
+  int crop_bottom = 0;
 
-  int width       = mediaformat.getInteger("width");
-  int height      = mediaformat.getInteger("height");
-  int stride      = mediaformat.getInteger("stride");
-  int slice_height= mediaformat.getInteger("slice-height");
-  int color_format= mediaformat.getInteger("color-format");
-  int crop_left   = mediaformat.getInteger("crop-left");
-  int crop_top    = mediaformat.getInteger("crop-top");
-  int crop_right  = mediaformat.getInteger("crop-right");
-  int crop_bottom = mediaformat.getInteger("crop-bottom");
+  if (mediaformat->containsKey("width"))
+    width       = mediaformat->getInteger("width");
+  if (mediaformat->containsKey("height"))
+    height      = mediaformat->getInteger("height");
+  if (mediaformat->containsKey("stride"))
+    stride      = mediaformat->getInteger("stride");
+  if (mediaformat->containsKey("slice-height"))
+    slice_height= mediaformat->getInteger("slice-height");
+  if (mediaformat->containsKey("color-format"))
+    color_format= mediaformat->getInteger("color-format");
+  if (mediaformat->containsKey("crop-left"))
+    crop_left   = mediaformat->getInteger("crop-left");
+  if (mediaformat->containsKey("crop-top"))
+    crop_top    = mediaformat->getInteger("crop-top");
+  if (mediaformat->containsKey("crop-right"))
+    crop_right  = mediaformat->getInteger("crop-right");
+  if (mediaformat->containsKey("crop-bottom"))
+    crop_bottom = mediaformat->getInteger("crop-bottom");
 
   CLog::Log(LOGDEBUG, "CDVDVideoCodecAndroidMediaCodec:: "
     "width(%d), height(%d), stride(%d), slice-height(%d), color-format(%d)",
@@ -896,9 +955,23 @@ void CDVDVideoCodecAndroidMediaCodec::OutputFormatChanged(void)
   else
   {
     // Android device quirks and fixes
-    if (stride <= 0)
-        stride = width;
-    if (slice_height <= 0)
+
+    // Samsung Quirk: ignore width/height/stride/slice: http://code.google.com/p/android/issues/detail?id=37768#c3
+    if (strstr(m_codecname.c_str(), "OMX.SEC.avc.dec") != NULL || strstr(m_codecname.c_str(), "OMX.SEC.avcdec") != NULL)
+    {
+      width = stride = m_hints.width;
+      height = slice_height = m_hints.height;
+    }
+    // No color-format? Initialize with the one we detected as valid earlier
+    if (color_format == 0)
+      color_format = m_colorFormat;
+    if (stride <= width)
+      stride = width;
+    if (!crop_right)
+      crop_right = width-1;
+    if (!crop_bottom)
+      crop_bottom = height-1;
+    if (slice_height <= height)
     {
       slice_height = height;
       if (color_format == CJNIMediaCodecInfoCodecCapabilities::COLOR_FormatYUV420Planar)
@@ -906,7 +979,7 @@ void CDVDVideoCodecAndroidMediaCodec::OutputFormatChanged(void)
         // NVidia Tegra 3 on Nexus 7 does not set slice_heights
         if (strstr(m_codecname.c_str(), "OMX.Nvidia.") != NULL)
         {
-          slice_height = (((height) + 31) & ~31);
+          slice_height = (((height) + 15) & ~15);
           CLog::Log(LOGDEBUG, "CDVDVideoCodecAndroidMediaCodec:: NVidia Tegra 3 quirk, slice_height(%d)", slice_height);
         }
       }

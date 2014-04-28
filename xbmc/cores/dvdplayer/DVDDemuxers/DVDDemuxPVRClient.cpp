@@ -252,7 +252,7 @@ void CDVDDemuxPVRClient::ParsePacket(DemuxPacket* pkt)
 
 
     CHECK_UPDATE(st, profile, pvr->m_context->profile , FF_PROFILE_UNKNOWN);
-    CHECK_UPDATE(st, level  , pvr->m_context->level   , 0);
+    CHECK_UPDATE(st, level  , pvr->m_context->level   , FF_LEVEL_UNKNOWN);
 
     switch (st->type)
     {
@@ -414,8 +414,10 @@ void CDVDDemuxPVRClient::RequestStreams()
       {
         st->ExtraData = new uint8_t[4];
         st->ExtraSize = 4;
-        ((uint16_t*)st->ExtraData)[0] = (props.stream[i].iIdentifier >> 0) & 0xFFFFu;
-        ((uint16_t*)st->ExtraData)[1] = (props.stream[i].iIdentifier >> 4) & 0xFFFFu;
+        st->ExtraData[0] = (props.stream[i].iIdentifier >> 8) & 0xff;
+        st->ExtraData[1] = (props.stream[i].iIdentifier >> 0) & 0xff;
+        st->ExtraData[2] = (props.stream[i].iIdentifier >> 24) & 0xff;
+        st->ExtraData[3] = (props.stream[i].iIdentifier >> 16) & 0xff;
       }
       m_streams[i] = st;
     }

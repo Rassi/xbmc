@@ -33,6 +33,7 @@
 #include "guilib/GUIFont.h"
 #include "cores/dvdplayer/DVDCodecs/Overlay/DVDOverlayText.h"
 #include "cores/VideoRenderers/RenderManager.h"
+#include "cores/VideoRenderers/OverlayRendererUtil.h"
 
 using namespace OVERLAY;
 

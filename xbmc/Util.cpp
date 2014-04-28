@@ -230,7 +230,7 @@ CStdString CUtil::GetTitleFromPath(const CStdString& strFileNameAndPath, bool bI
   }
   
   // URLDecode since the original path may be an URL
-  CURL::Decode(strFilename);
+  strFilename = CURL::Decode(strFilename);
   return strFilename;
 }
 
@@ -243,8 +243,8 @@ void CUtil::CleanString(const CStdString& strFileName, CStdString& strTitle, CSt
 
   const CStdStringArray &regexps = g_advancedSettings.m_videoCleanStringRegExps;
 
-  CRegExp reTags(true, true);
-  CRegExp reYear(false, true);
+  CRegExp reTags(true, CRegExp::autoUtf8);
+  CRegExp reYear(false, CRegExp::autoUtf8);
 
   if (!reYear.RegComp(g_advancedSettings.m_videoCleanDateTimeRegExp))
   {
@@ -519,7 +519,7 @@ bool CUtil::ExcludeFileOrFolder(const CStdString& strFileOrFolder, const CStdStr
   if (strFileOrFolder.empty())
     return false;
 
-  CRegExp regExExcludes(true, true);  // case insensitive regex
+  CRegExp regExExcludes(true, CRegExp::autoUtf8);  // case insensitive regex
 
   for (unsigned int i = 0; i < regexps.size(); i++)
   {
@@ -2205,7 +2205,7 @@ bool CUtil::FindVobSubPair( const std::vector<CStdString>& vecSubtitles, const C
       CStdString strSubDirectory;
       URIUtils::Split(vecSubtitles[j], strSubDirectory, strSubFile);
       if (URIUtils::IsInArchive(vecSubtitles[j]))
-        CURL::Decode(strSubDirectory);
+        strSubDirectory = CURL::Decode(strSubDirectory);
       if (URIUtils::HasExtension(strSubFile, ".sub") &&
           (URIUtils::ReplaceExtension(strIdxFile,"").Equals(URIUtils::ReplaceExtension(strSubFile,"")) ||
            (strSubDirectory.size() >= 11 &&
@@ -2229,7 +2229,7 @@ bool CUtil::IsVobSub( const std::vector<CStdString>& vecSubtitles, const CStdStr
     CStdString strSubDirectory;
     URIUtils::Split(strSubPath, strSubDirectory, strSubFile);
     if (URIUtils::IsInArchive(strSubPath))
-      CURL::Decode(strSubDirectory);
+      strSubDirectory = CURL::Decode(strSubDirectory);
     for (unsigned int j=0; j < vecSubtitles.size(); j++)
     {
       CStdString strIdxFile;

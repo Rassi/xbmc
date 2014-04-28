@@ -767,11 +767,7 @@ namespace VIDEO
         continue;
 
       if (!EnumerateEpisodeItem(items[i].get(), episodeList))
-      {
-        CStdString decode(items[i]->GetPath());
-        CURL::Decode(decode);
-        CLog::Log(LOGDEBUG, "VideoInfoScanner: Could not enumerate file %s", CURL::GetRedacted(decode).c_str());
-      }
+        CLog::Log(LOGDEBUG, "VideoInfoScanner: Could not enumerate file %s", CURL::GetRedacted(CURL::Decode(items[i]->GetPath())).c_str());
     }
   }
 
@@ -866,12 +862,11 @@ namespace VIDEO
 
     CStdString strLabel=item->GetPath();
     // URLDecode in case an episode is on a http/https/dav/davs:// source and URL-encoded like foo%201x01%20bar.avi
-    CURL::Decode(strLabel);
-    StringUtils::ToLower(strLabel);
+    strLabel = CURL::Decode(strLabel);
 
     for (unsigned int i=0;i<expression.size();++i)
     {
-      CRegExp reg(true, true);
+      CRegExp reg(true, CRegExp::autoUtf8);
       if (!reg.RegComp(expression[i].regexp))
         continue;
 
@@ -940,7 +935,7 @@ namespace VIDEO
       // add what we found by now
       episodeList.push_back(episode);
 
-      CRegExp reg2(true, true);
+      CRegExp reg2(true, CRegExp::autoUtf8);
       // check the remainder of the string for any further episodes.
       if (!byDate && reg2.RegComp(g_advancedSettings.m_tvshowMultiPartEnumRegExp))
       {
@@ -1073,9 +1068,7 @@ namespace VIDEO
       strTitle = StringUtils::Format("%s - %ix%i - %s", showInfo->m_strTitle.c_str(), movieDetails.m_iSeason, movieDetails.m_iEpisode, strTitle.c_str());
     }
 
-    std::string redactPath = pItem->GetPath();
-    CURL::Decode(redactPath);
-    redactPath = CURL::GetRedacted(redactPath);
+    std::string redactPath(CURL::GetRedacted(CURL::Decode(pItem->GetPath())));
 
     CLog::Log(LOGDEBUG, "VideoInfoScanner: Adding new item to %s:%s", TranslateContent(content).c_str(), redactPath.c_str());
     long lResult = -1;
@@ -1295,6 +1288,8 @@ namespace VIDEO
 
   std::string CVideoInfoScanner::GetFanart(CFileItem *pItem, bool useLocal)
   {
+    if (!pItem)
+      return "";
     std::string fanart = pItem->GetArt("fanart");
     if (fanart.empty() && useLocal)
       fanart = pItem->FindLocalArt("fanart.jpg", true);

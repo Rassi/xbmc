@@ -172,7 +172,7 @@
 				<left>940</left>
 				<top>600</top>
 				<control type="label">
-					<right>0</right>
+					<left>-580</left>
 					<top>0</top>
 					<width>580</width>
 					<height>45</height>
@@ -208,20 +208,12 @@
 					<aspectratio>keep</aspectratio>
 					<texture>icon_power.png</texture>
 				</control>
-				<control type="image">
-					<left>13</left>
-					<top>3</top>
-					<width>30</width>
-					<height>29</height>
-					<texture>home-power-focus.gif</texture>
-					<visible>Control.HasFocus(20)</visible>
-				</control>
 			</control>
 		</control>
 		<include>Clock</include>
 		<control type="label">
 			<description>Date label</description>
-			<right>20r</right>
+			<right>20</right>
 			<top>35</top>
 			<width>200</width>
 			<height>15</height>

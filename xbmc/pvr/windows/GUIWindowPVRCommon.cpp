@@ -198,16 +198,7 @@ void CGUIWindowPVRCommon::OnWindowUnload(void)
 
 bool CGUIWindowPVRCommon::OnAction(const CAction &action)
 {
-  bool bReturn = false;
-
-  if (action.GetID() == ACTION_NAV_BACK ||
-      action.GetID() == ACTION_PREVIOUS_MENU)
-  {
-    g_windowManager.PreviousWindow();
-    bReturn = true;
-  }
-
-  return bReturn;
+  return false; // CGUIWindowPVR will handle any default actions
 }
 
 bool CGUIWindowPVRCommon::OnContextButton(int itemNumber, CONTEXT_BUTTON button)
@@ -527,24 +518,24 @@ bool CGUIWindowPVRCommon::ActionPlayChannel(CFileItem *item)
 
 bool CGUIWindowPVRCommon::ActionPlayEpg(CFileItem *item)
 {
-  CEpgInfoTag *epgTag = item->GetEPGInfoTag();
-  if (!epgTag)
+  CPVRChannelPtr channel;
+  if (item && item->HasEPGInfoTag() && item->GetEPGInfoTag()->HasPVRChannel())
+    channel = item->GetEPGInfoTag()->ChannelTag();
+  
+  if (!channel || !g_PVRManager.CheckParentalLock(*channel))
     return false;
-
-  CPVRChannelPtr channel = epgTag->ChannelTag();
-  if (!channel || channel->ChannelNumber() > 0 ||
-      !g_PVRManager.CheckParentalLock(*channel))
-    return false;
-
-  PlayBackRet ret = g_application.PlayFile(CFileItem(*channel));
-
-  if (ret == PLAYBACK_FAIL)
+  
+  CFileItem channelItem = CFileItem(*channel);
+  g_application.SwitchToFullScreen();
+  if (!PlayFile(&channelItem))
   {
-    CStdString msg = StringUtils::Format(g_localizeStrings.Get(19035).c_str(), channel->ChannelName().c_str()); // CHANNELNAME could not be played. Check the log for details.
+    // CHANNELNAME could not be played. Check the log for details.
+    CStdString msg = StringUtils::Format(g_localizeStrings.Get(19035).c_str(), channel->ChannelName().c_str());
     CGUIDialogOK::ShowAndGetInput(19033, 0, msg, 0);
+    return false;
   }
-
-  return ret == PLAYBACK_OK;
+  
+  return true;
 }
 
 bool CGUIWindowPVRCommon::ActionDeleteChannel(CFileItem *item)
@@ -665,7 +656,7 @@ bool CGUIWindowPVRCommon::PlayRecording(CFileItem *item, bool bPlayMinimized /* 
   }
   else
   {
-    CLog::Log(LOGERROR, "PVRManager - %s - can't open recording: no valid filename", __FUNCTION__);
+    CLog::Log(LOGERROR, "CGUIWindowPVRCommon - %s - can't open recording: no valid filename", __FUNCTION__);
     CGUIDialogOK::ShowAndGetInput(19033,0,19036,0);
     return false;
   }

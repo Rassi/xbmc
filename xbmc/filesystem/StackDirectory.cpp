@@ -59,7 +59,7 @@ namespace XFILE
   {
     // Load up our REs
     VECCREGEXP  RegExps;
-    CRegExp     tempRE(true, true);
+    CRegExp     tempRE(true, CRegExp::autoUtf8);
     const CStdStringArray& strRegExps = g_advancedSettings.m_videoStackRegExps;
     CStdStringArray::const_iterator itRegExp = strRegExps.begin();
     vector<pair<int, CStdString> > badStacks;
@@ -93,8 +93,8 @@ namespace XFILE
       // Check if source path uses URL encoding
       if (URIUtils::ProtocolHasEncodedFilename(CURL(strCommonDir).GetProtocol()))
       {
-        CURL::Decode(File1);
-        CURL::Decode(File2);
+        File1 = CURL::Decode(File1);
+        File2 = CURL::Decode(File2);
       }
 
       std::vector<CRegExp>::iterator itRegExp = RegExps.begin();
@@ -128,7 +128,7 @@ namespace XFILE
                   strStackTitle = Title1 + Ignore1 + Extension1;
                   // Check if source path uses URL encoding
                   if (URIUtils::ProtocolHasEncodedFilename(CURL(strCommonDir).GetProtocol()))
-                    CURL::Encode(strStackTitle);
+                    strStackTitle = CURL::Encode(strStackTitle);
 
                   itRegExp = RegExps.end();
                   break;

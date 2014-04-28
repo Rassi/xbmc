@@ -268,6 +268,10 @@ msgctxt "#31141"
 msgid "Video OSD"
 msgstr "OSD de Video"
 
+msgctxt "#31142"
+msgid "Settings level"
+msgstr "Nivel de configuración"
+
 msgctxt "#31200"
 msgid "Shortcuts"
 msgstr "Atallos"
@@ -310,7 +314,7 @@ msgstr "Agochar cartel"
 
 msgctxt "#31308"
 msgid "Movie Details"
-msgstr "Detalles da Película"
+msgstr "Detalles do Filme"
 
 msgctxt "#31309"
 msgid "Memory Used:"
@@ -378,7 +382,7 @@ msgstr "[B]Temporizador estabrecido![/B] [COLOR=grey2] - Apagado automático de 
 
 msgctxt "#31330"
 msgid "Click button to play[CR][CR]Movie trailer"
-msgstr "Prema o botón para reproducir[CR][CR]Trailer da Película"
+msgstr "Prema o botón para reproducir[CR][CR]Trailer do filme"
 
 msgctxt "#31331"
 msgid "Album Details"
@@ -402,7 +406,7 @@ msgstr "Atrás"
 
 msgctxt "#31355"
 msgid "Movie menu"
-msgstr "Menú de Película"
+msgstr "Menú do filme"
 
 msgctxt "#31356"
 msgid "Download Subtitles"
@@ -434,7 +438,7 @@ msgstr "Baseado en Arial"
 
 msgctxt "#31400"
 msgid "[B]CONFIGURE APPEARANCE SETTINGS[/B][CR][CR]Change the skin · Set language and region · Change file listing options[CR]Set up a screensaver"
-msgstr "[B]CONFIGURAR PARÁMETROS DE APARIENCIA[/B][CR][CR]Trocar a pel · Estabrecer lingua e rexión · Trocar as opcións de listado de ficheiros[CR]Estabelecer o protector de pantalla"
+msgstr "[B]CONFIGURAR PARÁMETROS DE APARIENCIA[/B][CR][CR]Trocar a pel · Estabelecer a lingua e a rexión · Trocar as opcións de listado de ficheiros[CR]Estabelecer o protector de pantalla"
 
 msgctxt "#31401"
 msgid "[B]CONFIGURE VIDEO SETTINGS[/B][CR][CR]Manage your video library · Set video playback options · Change video listing options[CR]Set subtitle fonts"
@@ -462,7 +466,7 @@ msgstr "[B]CONFIGURAR ENGADIDOS[/B][CR][CR]Xestionar engadidos instalados · Bus
 
 msgctxt "#31409"
 msgid "[B]CONFIGURE TV SETTINGS[/B][CR][CR]Change full screen info · Manage EPG data settings"
-msgstr "[B]CONFIGURAR OS AXUSTES DE TV[/B][CR][CR]Trocar info. na pantalla completa · Controlar configuración dos datos da Guía"
+msgstr "[B]CONFIGURAR OS AXUSTES DE TV[/B][CR][CR]Trocar info. da pantalla completa · Xestionar a configuración dos datos da Guía"
 
 msgctxt "#31410"
 msgid "[B]CONFIGURE SERVICE SETTINGS[/B][CR][CR]Setup control of XBMC via UPnP and HTTP · Configure file sharing[CR]Enable Zeroconf · Configure AirPlay"
@@ -476,9 +480,25 @@ msgctxt "#31412"
 msgid "This tab signifies that there is a menu off to the side of this window that contains extra options for this section.  To access the menu, navigate to the left with your remote control or keyboard or place your mouse pointer over the tab. [CR][CR]Click \"Ok\" to close this dialogue. It will not appear again."
 msgstr "Esta lapela significa que existe un menú deshabilitado nesta xanela que contén máis opcións para esta sección. Para acceder ó menú, ir a esquerda co control remoto o teclado ou move o punteiro do rato até a lapela. [CR][CR]Preme en \"Feito\" para pechar a caixa de diálogo. Non aparecera máis."
 
+msgctxt "#31413"
+msgid "Local subtitle available"
+msgstr "Subtítulo local dispoñíbel"
+
+msgctxt "#31420"
+msgid "Login"
+msgstr "Inicio de sesión"
+
 msgctxt "#31421"
 msgid "Select your XBMC user Profile[CR]to login and continue"
 msgstr "Selecione o seu perfíl de usuario de XBMC[CR]para ingresar e continuar"
+
+msgctxt "#31422"
+msgid "Show or hide the login screen at startup."
+msgstr "Amosar ou agochar a pantalla de inicio de sesión ao iniciar."
+
+msgctxt "#31423"
+msgid "Select the profile that will be used at startup when the login screen is disabled."
+msgstr "Usar o perfil a usar no inicio cando a pantalla de inicio de sesión estea desabilitada."
 
 msgctxt "#31501"
 msgid "Scheduled Time"

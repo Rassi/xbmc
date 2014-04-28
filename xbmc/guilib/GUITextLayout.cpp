@@ -217,19 +217,28 @@ void CGUITextLayout::RenderOutline(float x, float y, color_t color, color_t outl
 
 bool CGUITextLayout::Update(const CStdString &text, float maxWidth, bool forceUpdate /*= false*/, bool forceLTRReadingOrder /*= false*/)
 {
-  // convert to utf16
+  if (text == m_lastUtf8Text && !forceUpdate)
+    return false;
+
+  m_lastUtf8Text = text;
   CStdStringW utf16;
   utf8ToW(text, utf16);
-
-  // update
-  return UpdateW(utf16, maxWidth, forceUpdate, forceLTRReadingOrder);
+  UpdateCommon(utf16, maxWidth, forceLTRReadingOrder);
+  return true;
 }
 
 bool CGUITextLayout::UpdateW(const CStdStringW &text, float maxWidth /*= 0*/, bool forceUpdate /*= false*/, bool forceLTRReadingOrder /*= false*/)
 {
-  if (text.Equals(m_lastText) && !forceUpdate)
+  if (text == m_lastText && !forceUpdate)
     return false;
 
+  m_lastText = text;
+  UpdateCommon(text, maxWidth, forceLTRReadingOrder);
+  return true;
+}
+
+void CGUITextLayout::UpdateCommon(const CStdStringW &text, float maxWidth, bool forceLTRReadingOrder)
+{
   // parse the text for style information
   vecText parsedText;
   vecColors colors;
@@ -237,8 +246,6 @@ bool CGUITextLayout::UpdateW(const CStdStringW &text, float maxWidth /*= 0*/, bo
 
   // and update
   UpdateStyled(parsedText, colors, maxWidth, forceLTRReadingOrder);
-  m_lastText = text;
-  return true;
 }
 
 void CGUITextLayout::UpdateStyled(const vecText &text, const vecColors &colors, float maxWidth, bool forceLTRReadingOrder)
@@ -405,7 +412,9 @@ void CGUITextLayout::ParseText(const CStdStringW &text, uint32_t defaultStyle, c
       size_t finish = text.find(L']', pos + 5);
       if (on && finish != std::string::npos && text.find(L"[/COLOR]",finish) != std::string::npos)
       {
-        color_t color = g_colorManager.GetColor(text.substr(pos + 5, finish - pos - 5));
+        std::string t;
+        g_charsetConverter.wToUTF8(text.substr(pos + 5, finish - pos - 5), t);
+        color_t color = g_colorManager.GetColor(t);
         vecColors::const_iterator it = std::find(colors.begin(), colors.end(), color);
         if (it == colors.end())
         { // create new color
@@ -668,6 +677,7 @@ void CGUITextLayout::Reset()
 {
   m_lines.clear();
   m_lastText.clear();
+  m_lastUtf8Text.clear();
   m_textWidth = m_textHeight = 0;
 }
 

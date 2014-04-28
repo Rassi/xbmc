@@ -78,17 +78,16 @@
 					<texture border="10">ContentPanelMirror.png</texture>
 				</control>
 				<control type="image">
-					<left>20</left>
+					<left>8</left>
 					<top>5</top>
-					<width>460</width>
-					<height>90</height>
-					<aspectratio>stretch</aspectratio>
-					<texture>GlassTitleBar.png</texture>
+					<width>484</width>
+					<height>45</height>
+					<texture>dialogheader.png</texture>
 				</control>
 				<control type="label">
 					<description>header label</description>
 					<left>20</left>
-					<top>13</top>
+					<top>15</top>
 					<width>460</width>
 					<height>30</height>
 					<font>font13_title</font>
@@ -99,10 +98,10 @@
 					<shadowcolor>black</shadowcolor>
 				</control>
 				<control type="image">
-					<left>70</left>
-					<top>30</top>
-					<width>360</width>
-					<height>90</height>
+					<left>30</left>
+					<top>55</top>
+					<width>440</width>
+					<height>46</height>
 					<aspectratio align="center" aligny="center">keep</aspectratio>
 					<texture>$INFO[Window.Property(WeatherProviderLogo)]</texture>
 				</control>
@@ -149,7 +148,7 @@
 					</control>
 					<control type="label">
 						<description>current temp Value</description>
-						<right>195</right>
+						<left>15</left>
 						<top>185</top>
 						<width>180</width>
 						<height>40</height>
@@ -206,7 +205,7 @@
 				</control>
 				<control type="label">
 					<description>current feels like label</description>
-					<right>170</right>
+					<left>0</left>
 					<top>400</top>
 					<width>170</width>
 					<height>35</height>
@@ -219,7 +218,7 @@
 				</control>
 				<control type="label">
 					<description>current dew label</description>
-					<right>170</right>
+					<left>0</left>
 					<top>430</top>
 					<width>170</width>
 					<height>35</height>
@@ -232,7 +231,7 @@
 				</control>
 				<control type="label">
 					<description>current humidity label</description>
-					<right>170</right>
+					<left>0</left>
 					<top>460</top>
 					<width>170</width>
 					<height>35</height>
@@ -245,7 +244,7 @@
 				</control>
 				<control type="label">
 					<description>current UV Index label</description>
-					<right>170</right>
+					<left>0</left>
 					<top>490</top>
 					<width>170</width>
 					<height>35</height>
@@ -258,7 +257,7 @@
 				</control>
 				<control type="label">
 					<description>current Wind label</description>
-					<right>170</right>
+					<left>0</left>
 					<top>520</top>
 					<width>170</width>
 					<height>35</height>
@@ -351,7 +350,7 @@
 					</control>
 					<control type="label">
 						<description>Sunset label</description>
-						<right>470</right>
+						<left>170</left>
 						<top>570</top>
 						<width>300</width>
 						<height>35</height>
@@ -383,17 +382,16 @@
 					<texture border="10">ContentPanelMirror.png</texture>
 				</control>
 				<control type="image">
-					<left>20</left>
+					<left>8</left>
 					<top>5</top>
-					<width>610</width>
-					<height>90</height>
-					<aspectratio>stretch</aspectratio>
-					<texture>GlassTitleBar.png</texture>
+					<width>634</width>
+					<height>45</height>
+					<texture>dialogheader.png</texture>
 				</control>
 				<control type="label">
 					<description>header label</description>
 					<left>20</left>
-					<top>13</top>
+					<top>15</top>
 					<width>610</width>
 					<height>30</height>
 					<font>font13_title</font>
@@ -682,7 +680,7 @@
 				<control type="label">
 					<animation effect="slide" start="0,0" end="-90,0" time="0" condition="system.getbool(input.enablemouse)">Conditional</animation>
 					<description>number of files/pages</description>
-					<right>660</right>
+					<left>90</left>
 					<top>627</top>
 					<width>570</width>
 					<font>font12</font>
@@ -712,12 +710,11 @@
 					<texture border="10">ContentPanelMirror.png</texture>
 				</control>
 				<control type="image">
-					<left>20</left>
+					<left>8</left>
 					<top>5</top>
-					<width>610</width>
-					<height>90</height>
-					<aspectratio>stretch</aspectratio>
-					<texture>GlassTitleBar.png</texture>
+					<width>634</width>
+					<height>45</height>
+					<texture>dialogheader.png</texture>
 				</control>
 				<control type="group" id="50">
 					<include condition="StringCompare(Weather.Plugin,weather.wunderground)">Weather10DayForcast</include>

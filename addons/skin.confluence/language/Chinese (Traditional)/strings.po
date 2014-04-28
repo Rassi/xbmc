@@ -268,6 +268,10 @@ msgctxt "#31141"
 msgid "Video OSD"
 msgstr "影片播放工具列"
 
+msgctxt "#31142"
+msgid "Settings level"
+msgstr "設定值"
+
 msgctxt "#31200"
 msgid "Shortcuts"
 msgstr "捷徑"
@@ -476,9 +480,25 @@ msgctxt "#31412"
 msgid "This tab signifies that there is a menu off to the side of this window that contains extra options for this section.  To access the menu, navigate to the left with your remote control or keyboard or place your mouse pointer over the tab. [CR][CR]Click \"Ok\" to close this dialogue. It will not appear again."
 msgstr "這個標籤表示這個部分在視窗的側邊有提供額外選項的選單。你可以使用遙控器或鍵盤的左鍵或者是將滑鼠指標移動到這個標籤的範圍來存取這個選單。[CR][CR]按一下\"Ok\" 可以關閉這個對話框。它不會再出現。"
 
+msgctxt "#31413"
+msgid "Local subtitle available"
+msgstr "有本地語言的字幕可選用"
+
+msgctxt "#31420"
+msgid "Login"
+msgstr "登入"
+
 msgctxt "#31421"
 msgid "Select your XBMC user Profile[CR]to login and continue"
 msgstr "選擇您的 XBMC 使用者設定檔[CR]登入並繼續"
+
+msgctxt "#31422"
+msgid "Show or hide the login screen at startup."
+msgstr "啟動時顯示或隱藏登入畫面"
+
+msgctxt "#31423"
+msgid "Select the profile that will be used at startup when the login screen is disabled."
+msgstr "選擇登入畫面停用是要使用的設定檔。"
 
 msgctxt "#31501"
 msgid "Scheduled Time"

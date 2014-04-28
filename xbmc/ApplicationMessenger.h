@@ -209,7 +209,7 @@ public:
   void ActivateScreensaver();
   void SwitchToFullscreen(); //
   void Minimize(bool wait = false);
-  void ExecOS(const CStdString command, bool waitExit = false);
+  void ExecOS(const CStdString &command, bool waitExit = false);
   void UserEvent(int code);
   //! \brief Set the tag for the currently playing song
   void SetCurrentSongTag(const MUSIC_INFO::CMusicInfoTag& tag);
@@ -234,6 +234,9 @@ public:
   void Close(CGUIWindow *window, bool forceClose, bool waitResult = true, int nextWindowID = 0, bool enableSound = true);
   void ActivateWindow(int windowID, const std::vector<CStdString> &params, bool swappingWindows);
   void SendAction(const CAction &action, int windowID = WINDOW_INVALID, bool waitResult=true);
+
+  //! \brief Send text to currently focused window / keyboard.
+  void SendText(const std::string &aTextString, bool closeKeyboard = false);
 
   /*! \brief Send a GUIMessage, optionally waiting before it's processed to return.
    Should be used to send messages to the GUI from other threads.

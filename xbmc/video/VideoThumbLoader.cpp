@@ -134,6 +134,15 @@ bool CThumbExtractor::DoWork()
     CVideoDatabase db;
     if (db.Open())
     {
+      if (URIUtils::IsStack(m_listpath))
+      {
+        // Don't know the total time of the stack, so set duration to zero to avoid confusion
+        m_item.GetVideoInfoTag()->m_streamDetails.SetVideoDuration(0, 0);
+
+        // Restore original stack path
+        m_item.SetPath(m_listpath);
+      }
+
       if (info->m_iFileId < 0)
         db.SetStreamDetailsForFile(info->m_streamDetails, !info->m_strFileNameAndPath.empty() ? info->m_strFileNameAndPath : m_item.GetPath());
       else
@@ -292,8 +301,7 @@ bool CVideoThumbLoader::LoadItemCached(CFileItem* pItem)
 
 bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
 {
-  if (pItem->m_bIsShareOrDrive
-  ||  pItem->IsParentFolder())
+  if (pItem->m_bIsShareOrDrive || pItem->IsParentFolder() || pItem->GetPath() == "add")
     return false;
 
   if (pItem->HasVideoInfoTag()                         &&
@@ -374,8 +382,7 @@ bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
     // flag extraction
     if (CSettings::Get().GetBool("myvideos.extractflags") &&
        (!pItem->HasVideoInfoTag()                     ||
-        !pItem->GetVideoInfoTag()->HasStreamDetails() ||
-         pItem->GetVideoInfoTag()->m_streamDetails.GetVideoDuration() <= 0))
+        !pItem->GetVideoInfoTag()->HasStreamDetails() ) )
     {
       CFileItem item(*pItem);
       CStdString path(item.GetPath());
@@ -460,12 +467,16 @@ bool CVideoThumbLoader::FillThumb(CFileItem &item)
     if (!thumb.empty())
       SetCachedImage(item, "thumb", thumb);
   }
-  item.SetArt("thumb", thumb);
+  if (!thumb.empty())
+    item.SetArt("thumb", thumb);
   return !thumb.empty();
 }
 
 std::string CVideoThumbLoader::GetLocalArt(const CFileItem &item, const std::string &type, bool checkFolder)
 {
+  if (item.SkipLocalArt())
+    return "";
+
   /* Cache directory for (sub) folders on streamed filesystems. We need to do this
      else entering (new) directories from the app thread becomes much slower. This
      is caused by the fact that Curl Stat/Exist() is really slow and that the 

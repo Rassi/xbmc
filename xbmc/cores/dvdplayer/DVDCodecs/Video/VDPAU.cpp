@@ -42,6 +42,16 @@ using namespace VDPAU;
 
 #define ARSIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+// settings codecs mapping
+DVDCodecAvailableType g_vdpau_available[] = {
+  { AV_CODEC_ID_H263, "videoplayer.usevdpaumpeg4" },
+  { AV_CODEC_ID_MPEG4, "videoplayer.usevdpaumpeg4" },
+  { AV_CODEC_ID_WMV3, "videoplayer.usevdpauvc1" },
+  { AV_CODEC_ID_VC1, "videoplayer.usevdpauvc1" },
+  { AV_CODEC_ID_MPEG2VIDEO, "videoplayer.usevdpaumpeg2" },
+};
+const size_t settings_count = sizeof(g_vdpau_available) / sizeof(DVDCodecAvailableType);
+
 CDecoder::Desc decoder_profiles[] = {
 {"MPEG1",        VDP_DECODER_PROFILE_MPEG1},
 {"MPEG2_SIMPLE", VDP_DECODER_PROFILE_MPEG2_SIMPLE},
@@ -52,9 +62,7 @@ CDecoder::Desc decoder_profiles[] = {
 {"VC1_SIMPLE",   VDP_DECODER_PROFILE_VC1_SIMPLE},
 {"VC1_MAIN",     VDP_DECODER_PROFILE_VC1_MAIN},
 {"VC1_ADVANCED", VDP_DECODER_PROFILE_VC1_ADVANCED},
-#ifdef VDP_DECODER_PROFILE_MPEG4_PART2_ASP
 {"MPEG4_PART2_ASP", VDP_DECODER_PROFILE_MPEG4_PART2_ASP},
-#endif
 };
 const size_t decoder_profile_count = sizeof(decoder_profiles)/sizeof(CDecoder::Desc);
 
@@ -483,29 +491,36 @@ CDecoder::CDecoder() : m_vdpauOutput(&m_inMsgEvent)
   m_vdpauConfig.context = 0;
 }
 
-bool CDecoder::Open(AVCodecContext* avctx, const enum PixelFormat, unsigned int surfaces)
+bool CDecoder::Open(AVCodecContext* avctx, const enum PixelFormat fmt, unsigned int surfaces)
 {
+  // check if user wants to decode this format with VDPAU
+  std::string gpuvendor = g_Windowing.GetRenderVendor();
+  std::transform(gpuvendor.begin(), gpuvendor.end(), gpuvendor.begin(), ::tolower);
+  // nvidia is whitelisted despite for mpeg-4 we need to query user settings
+  if ((gpuvendor.compare(0, 6, "nvidia") != 0)  || (avctx->codec_id == AV_CODEC_ID_MPEG4) || (avctx->codec_id == AV_CODEC_ID_H263))
+  {
+    if (CDVDVideoCodec::IsCodecDisabled(g_vdpau_available, settings_count, avctx->codec_id))
+      return false;
+  }
+
 #ifndef GL_NV_vdpau_interop
   CLog::Log(LOGNOTICE, "VDPAU: compilation without required extension GL_NV_vdpau_interop");
   return false;
 #endif
   if (!g_Windowing.IsExtSupported("GL_NV_vdpau_interop"))
   {
-    CLog::Log(LOGNOTICE, "VDPAU: required extension GL_NV_vdpau_interop not found");
+    CLog::Log(LOGNOTICE, "VDPAU::Open: required extension GL_NV_vdpau_interop not found");
     return false;
   }
 
   if(avctx->coded_width  == 0
   || avctx->coded_height == 0)
   {
-    CLog::Log(LOGWARNING,"(VDPAU) no width/height available, can't init");
+    CLog::Log(LOGWARNING,"VDPAU::Open: no width/height available, can't init");
     return false;
   }
   m_vdpauConfig.numRenderBuffers = surfaces;
   m_decoderThread = CThread::GetCurrentThreadId();
-
-  if ((avctx->codec_id == AV_CODEC_ID_MPEG4) && !g_advancedSettings.m_videoAllowMpeg4VDPAU)
-    return false;
 
   if (!CVDPAUContext::EnsureContext(&m_vdpauConfig.context))
     return false;
@@ -520,45 +535,63 @@ bool CDecoder::Open(AVCodecContext* avctx, const enum PixelFormat, unsigned int 
 
   {
     VdpDecoderProfile profile = 0;
-    if(avctx->codec_id == AV_CODEC_ID_H264)
-      profile = VDP_DECODER_PROFILE_H264_HIGH;
-#ifdef VDP_DECODER_PROFILE_MPEG4_PART2_ASP
-    else if(avctx->codec_id == AV_CODEC_ID_MPEG4)
-      profile = VDP_DECODER_PROFILE_MPEG4_PART2_ASP;
-#endif
+
+    // convert FFMPEG codec ID to VDPAU profile.
+    ReadFormatOf(avctx->codec_id, profile, m_vdpauConfig.vdpChromaType);
     if(profile)
     {
-      if (!CDVDCodecUtils::IsVP3CompatibleWidth(avctx->coded_width))
-        CLog::Log(LOGWARNING,"(VDPAU) width %i might not be supported because of hardware bug", avctx->width);
-   
-      /* attempt to create a decoder with this width/height, some sizes are not supported by hw */
       VdpStatus vdp_st;
+      VdpBool is_supported = false;
+      uint32_t max_level, max_macroblocks, max_width, max_height;
+
+      // query device capabilities to ensure that VDPAU can handle the requested codec
+      vdp_st = m_vdpauConfig.context->GetProcs().vdp_decoder_query_caps(m_vdpauConfig.context->GetDevice(),
+               profile, &is_supported, &max_level, &max_macroblocks, &max_width, &max_height);
+
+      // test to make sure there is a possibility the codec will work
+      if (CheckStatus(vdp_st, __LINE__))
+      {
+        CLog::Log(LOGERROR, "VDPAU::Open: error %s(%d) checking for decoder support", m_vdpauConfig.context->GetProcs().vdp_get_error_string(vdp_st), vdp_st);
+        return false;
+      }
+
+      if (max_width < avctx->coded_width || max_height < avctx->coded_height)
+      {
+        CLog::Log(LOGWARNING,"VDPAU::Open: requested picture dimensions (%i, %i) exceed hardware capabilities ( %i, %i).",
+	                      avctx->coded_width, avctx->coded_height, max_width, max_height);
+        return false;
+      }
+
+      if (!CDVDCodecUtils::IsVP3CompatibleWidth(avctx->coded_width))
+        CLog::Log(LOGWARNING,"VDPAU::Open width %i might not be supported because of hardware bug", avctx->width);
+   
+      // attempt to create a decoder with this width/height, some sizes are not supported by hw
       vdp_st = m_vdpauConfig.context->GetProcs().vdp_decoder_create(m_vdpauConfig.context->GetDevice(), profile, avctx->coded_width, avctx->coded_height, 5, &m_vdpauConfig.vdpDecoder);
 
-      if(vdp_st != VDP_STATUS_OK)
+      if (CheckStatus(vdp_st, __LINE__))
       {
-        CLog::Log(LOGERROR, " (VDPAU) Error: %s(%d) checking for decoder support\n", m_vdpauConfig.context->GetProcs().vdp_get_error_string(vdp_st), vdp_st);
+        CLog::Log(LOGERROR, "VDPAU::Open: error: %s(%d) checking for decoder support", m_vdpauConfig.context->GetProcs().vdp_get_error_string(vdp_st), vdp_st);
         return false;
       }
 
       m_vdpauConfig.context->GetProcs().vdp_decoder_destroy(m_vdpauConfig.vdpDecoder);
       CheckStatus(vdp_st, __LINE__);
+
+      // finally setup ffmpeg
+      memset(&m_hwContext, 0, sizeof(AVVDPAUContext));
+      m_hwContext.render = CDecoder::Render;
+      m_hwContext.bitstream_buffers_allocated = 0;
+      avctx->get_buffer      = CDecoder::FFGetBuffer;
+      avctx->reget_buffer    = CDecoder::FFGetBuffer;
+      avctx->release_buffer  = CDecoder::FFReleaseBuffer;
+      avctx->draw_horiz_band = CDecoder::FFDrawSlice;
+      avctx->slice_flags=SLICE_FLAG_CODED_ORDER|SLICE_FLAG_ALLOW_FIELD;
+      avctx->hwaccel_context = &m_hwContext;
+      avctx->thread_count    = 1;
+
+      g_Windowing.Register(this);
+      return true;
     }
-
-    /* finally setup ffmpeg */
-    memset(&m_hwContext, 0, sizeof(AVVDPAUContext));
-    m_hwContext.render = CDecoder::Render;
-    m_hwContext.bitstream_buffers_allocated = 0;
-    avctx->get_buffer      = CDecoder::FFGetBuffer;
-    avctx->reget_buffer    = CDecoder::FFGetBuffer;
-    avctx->release_buffer  = CDecoder::FFReleaseBuffer;
-    avctx->draw_horiz_band = CDecoder::FFDrawSlice;
-    avctx->slice_flags=SLICE_FLAG_CODED_ORDER|SLICE_FLAG_ALLOW_FIELD;
-    avctx->hwaccel_context = &m_hwContext;
-    avctx->thread_count    = 1;
-
-    g_Windowing.Register(this);
-    return true;
   }
   return false;
 }
@@ -1682,11 +1715,6 @@ void CMixer::CreateVdpauMixer()
                                 &m_videoMixer);
   CheckStatus(vdp_st, __LINE__);
 
-  // create 3 pitches of black lines needed for clipping top
-  // and bottom lines when de-interlacing
-  m_BlackBar = new uint32_t[3*m_config.outWidth];
-  memset(m_BlackBar, 0, 3*m_config.outWidth*sizeof(uint32_t));
-
 }
 
 void CMixer::InitCSCMatrix(int Width)
@@ -2223,6 +2251,8 @@ void CMixer::Init()
   m_Sharpness = 0.0;
   m_DeintMode = 0;
   m_Deint = 0;
+  m_Upscale = 0;
+  m_SeenInterlaceFlag = false;
   m_ColorMatrix = 0;
   m_PostProc = false;
   m_vdpError = false;
@@ -2241,8 +2271,6 @@ void CMixer::Uninit()
     m_outputSurfaces.pop();
   }
   m_config.context->GetProcs().vdp_video_mixer_destroy(m_videoMixer);
-
-  delete [] m_BlackBar;
 }
 
 void CMixer::Flush()
@@ -2294,6 +2322,7 @@ void CMixer::InitCycle()
   EDEINTERLACEMODE   mode = CMediaSettings::Get().GetCurrentVideoSettings().m_DeinterlaceMode;
   EINTERLACEMETHOD method = GetDeinterlacingMethod();
   bool interlaced = m_mixerInput[1].DVDPic.iFlags & DVP_FLAG_INTERLACED;
+  m_SeenInterlaceFlag |= interlaced;
 
   // TODO
   if (//!(flags & DVP_FLAG_NO_POSTPROC) &&
@@ -2377,6 +2406,12 @@ void CMixer::InitCycle()
     m_processPicture.outputSurface = m_outputSurfaces.front();
     m_mixerInput[1].DVDPic.iWidth = m_config.outWidth;
     m_mixerInput[1].DVDPic.iHeight = m_config.outHeight;
+    if (m_SeenInterlaceFlag)
+    {
+      double ratio = (double)m_mixerInput[1].DVDPic.iDisplayHeight / m_mixerInput[1].DVDPic.iHeight;
+      m_mixerInput[1].DVDPic.iHeight -= 6;
+      m_mixerInput[1].DVDPic.iDisplayHeight = lrint(ratio*m_mixerInput[1].DVDPic.iHeight);
+    }
   }
   else
   {
@@ -2511,32 +2546,6 @@ void CMixer::ProcessPicture()
                                 0,
                                 NULL);
   CheckStatus(vdp_st, __LINE__);
-
-  if (m_mixerfield != VDP_VIDEO_MIXER_PICTURE_STRUCTURE_FRAME)
-  {
-    // in order to clip top and bottom lines when de-interlacing
-    // we black those lines as a work around for not working
-    // background colour using the mixer
-    // pixel perfect is preferred over overscanning or zooming
-
-    VdpRect clipRect = destRect;
-    clipRect.y1 = clipRect.y0 + 2;
-    uint32_t *data[] = {m_BlackBar};
-    uint32_t pitches[] = {destRect.x1};
-    vdp_st = m_config.context->GetProcs().vdp_output_surface_put_bits_native(m_processPicture.outputSurface,
-                                            (void**)data,
-                                            pitches,
-                                            &clipRect);
-    CheckStatus(vdp_st, __LINE__);
-
-    clipRect = destRect;
-    clipRect.y0 = clipRect.y1 - 2;
-    vdp_st = m_config.context->GetProcs().vdp_output_surface_put_bits_native(m_processPicture.outputSurface,
-                                            (void**)data,
-                                            pitches,
-                                            &clipRect);
-    CheckStatus(vdp_st, __LINE__);
-  }
 }
 
 
@@ -3064,15 +3073,20 @@ CVdpauRenderPicture* COutput::ProcessMixerPicture()
       m_config.useInteropYuv = false;
       m_bufferPool.numOutputSurfaces = NUM_RENDER_PICS;
       EnsureBufferPool();
-      GLMapSurfaces();
+      GLMapSurface(false, procPic.outputSurface);
       retPic->sourceIdx = procPic.outputSurface;
       retPic->texture[0] = m_bufferPool.glOutputSurfaceMap[procPic.outputSurface].texture[0];
-      retPic->crop = CRect(0,0,0,0);
+      retPic->texWidth = m_config.outWidth;
+      retPic->texHeight = m_config.outHeight;
+      retPic->crop.x1 = 0;
+      retPic->crop.y1 = (m_config.outHeight - retPic->DVDPic.iHeight) / 2;
+      retPic->crop.x2 = m_config.outWidth;
+      retPic->crop.y2 = m_config.outHeight - retPic->crop.y1;
     }
     else
     {
       m_config.useInteropYuv = true;
-      GLMapSurfaces();
+      GLMapSurface(true, procPic.videoSurface);
       retPic->sourceIdx = procPic.videoSurface;
       for (unsigned int i=0; i<4; ++i)
         retPic->texture[i] = m_bufferPool.glVideoSurfaceMap[procPic.videoSurface].texture[i];
@@ -3187,6 +3201,9 @@ void COutput::ProcessReturnPicture(CVdpauRenderPicture *pic)
       CLog::Log(LOGDEBUG, "COutput::ProcessReturnPicture - gl surface not found");
       return;
     }
+#ifdef GL_NV_vdpau_interop
+    glVDPAUUnmapSurfacesNV(1, &(it->second.glVdpauSurface));
+#endif
     VdpVideoSurface surf = it->second.sourceVuv;
     m_config.videoSurfaces->ClearRender(surf);
   }
@@ -3199,6 +3216,9 @@ void COutput::ProcessReturnPicture(CVdpauRenderPicture *pic)
       CLog::Log(LOGDEBUG, "COutput::ProcessReturnPicture - gl surface not found");
       return;
     }
+#ifdef GL_NV_vdpau_interop
+    glVDPAUUnmapSurfacesNV(1, &(it->second.glVdpauSurface));
+#endif
     VdpOutputSurface outSurf = it->second.sourceRgb;
     m_mixer.m_dataPort.SendOutMessage(CMixerDataProtocol::BUFFER, &outSurf, sizeof(outSurf));
   }
@@ -3408,95 +3428,103 @@ bool COutput::GLInit()
   return true;
 }
 
-void COutput::GLMapSurfaces()
+void COutput::GLMapSurface(bool yuv, uint32_t source)
 {
 #ifdef GL_NV_vdpau_interop
 
-  if (m_config.useInteropYuv)
+  if (yuv)
   {
-    VdpauBufferPool::GLVideoSurface glSurface;
-    VdpVideoSurface surf;
-    if (m_config.videoSurfaces->Size() != m_bufferPool.glVideoSurfaceMap.size())
+    std::map<VdpVideoSurface, VdpauBufferPool::GLVideoSurface>::iterator it;
+    it = m_bufferPool.glVideoSurfaceMap.find(source);
+    if (it == m_bufferPool.glVideoSurfaceMap.end())
     {
-      for (unsigned int i = 0; i < m_config.videoSurfaces->Size(); i++)
+      VdpauBufferPool::GLVideoSurface glSurface;
+      VdpVideoSurface surf = source;
+
+      if (surf == VDP_INVALID_HANDLE)
+        return;
+
+      glSurface.sourceVuv = surf;
+      while (glGetError() != GL_NO_ERROR) ;
+      glGenTextures(4, glSurface.texture);
+      if (glGetError() != GL_NO_ERROR)
       {
-        surf = m_config.videoSurfaces->GetAtIndex(i);
-
-        if (surf == VDP_INVALID_HANDLE)
-          continue;
-
-        if (m_bufferPool.glVideoSurfaceMap.find(surf) == m_bufferPool.glVideoSurfaceMap.end())
-        {
-          glSurface.sourceVuv = surf;
-          while (glGetError() != GL_NO_ERROR) ;
-          glGenTextures(4, glSurface.texture);
-          if (glGetError() != GL_NO_ERROR)
-          {
-             CLog::Log(LOGERROR, "VDPAU::COutput error creating texture");
-             m_vdpError = true;
-          }
-          glSurface.glVdpauSurface = glVDPAURegisterVideoSurfaceNV(reinterpret_cast<void*>(surf),
+        CLog::Log(LOGERROR, "VDPAU::COutput error creating texture");
+        m_vdpError = true;
+      }
+      glSurface.glVdpauSurface = glVDPAURegisterVideoSurfaceNV(reinterpret_cast<void*>(surf),
                                                     GL_TEXTURE_2D, 4, glSurface.texture);
 
-          if (glGetError() != GL_NO_ERROR)
-          {
-            CLog::Log(LOGERROR, "VDPAU::COutput error register video surface");
-            m_vdpError = true;
-          }
-          glVDPAUSurfaceAccessNV(glSurface.glVdpauSurface, GL_READ_ONLY);
-          if (glGetError() != GL_NO_ERROR)
-          {
-            CLog::Log(LOGERROR, "VDPAU::COutput error setting access");
-            m_vdpError = true;
-          }
-          glVDPAUMapSurfacesNV(1, &glSurface.glVdpauSurface);
-          if (glGetError() != GL_NO_ERROR)
-          {
-            CLog::Log(LOGERROR, "VDPAU::COutput error mapping surface");
-            m_vdpError = true;
-          }
-          m_bufferPool.glVideoSurfaceMap[surf] = glSurface;
-          if (m_vdpError)
-            return;
-          CLog::Log(LOGNOTICE, "VDPAU::COutput registered surface");
-        }
+      if (glGetError() != GL_NO_ERROR)
+      {
+        CLog::Log(LOGERROR, "VDPAU::COutput error register video surface");
+        m_vdpError = true;
       }
+      glVDPAUSurfaceAccessNV(glSurface.glVdpauSurface, GL_READ_ONLY);
+      if (glGetError() != GL_NO_ERROR)
+      {
+        CLog::Log(LOGERROR, "VDPAU::COutput error setting access");
+        m_vdpError = true;
+      }
+      m_bufferPool.glVideoSurfaceMap[surf] = glSurface;
+
+      CLog::Log(LOGNOTICE, "VDPAU::COutput registered surface");
     }
+
+    while (glGetError() != GL_NO_ERROR) ;
+    glVDPAUMapSurfacesNV(1, &m_bufferPool.glVideoSurfaceMap[source].glVdpauSurface);
+    if (glGetError() != GL_NO_ERROR)
+    {
+      CLog::Log(LOGERROR, "VDPAU::COutput error mapping surface");
+      m_vdpError = true;
+    }
+
+    if (m_vdpError)
+      return;
   }
   else
   {
-    if (m_bufferPool.glOutputSurfaceMap.size() != m_bufferPool.numOutputSurfaces)
+    std::map<VdpOutputSurface, VdpauBufferPool::GLVideoSurface>::iterator it;
+    it = m_bufferPool.glOutputSurfaceMap.find(source);
+    if (it == m_bufferPool.glOutputSurfaceMap.end())
     {
-      VdpauBufferPool::GLVideoSurface glSurface;
-      for (unsigned int i = m_bufferPool.glOutputSurfaceMap.size(); i<m_bufferPool.outputSurfaces.size(); i++)
+      unsigned int idx = 0;
+      for (idx = 0; idx<m_bufferPool.outputSurfaces.size(); idx++)
       {
-        glSurface.sourceRgb = m_bufferPool.outputSurfaces[i];
-        glGenTextures(1, glSurface.texture);
-        glSurface.glVdpauSurface = glVDPAURegisterOutputSurfaceNV(reinterpret_cast<void*>(m_bufferPool.outputSurfaces[i]),
-                                               GL_TEXTURE_2D, 1, glSurface.texture);
-        if (glGetError() != GL_NO_ERROR)
-        {
-          CLog::Log(LOGERROR, "VDPAU::COutput error register output surface");
-          m_vdpError = true;
-        }
-        glVDPAUSurfaceAccessNV(glSurface.glVdpauSurface, GL_READ_ONLY);
-        if (glGetError() != GL_NO_ERROR)
-        {
-          CLog::Log(LOGERROR, "VDPAU::COutput error setting access");
-          m_vdpError = true;
-        }
-        glVDPAUMapSurfacesNV(1, &glSurface.glVdpauSurface);
-        if (glGetError() != GL_NO_ERROR)
-        {
-          CLog::Log(LOGERROR, "VDPAU::COutput error mapping surface");
-          m_vdpError = true;
-        }
-        m_bufferPool.glOutputSurfaceMap[m_bufferPool.outputSurfaces[i]] = glSurface;
-        if (m_vdpError)
-          return;
+        if (m_bufferPool.outputSurfaces[idx] == source)
+          break;
       }
+
+      VdpauBufferPool::GLVideoSurface glSurface;
+      glSurface.sourceRgb = m_bufferPool.outputSurfaces[idx];
+      glGenTextures(1, glSurface.texture);
+      glSurface.glVdpauSurface = glVDPAURegisterOutputSurfaceNV(reinterpret_cast<void*>(m_bufferPool.outputSurfaces[idx]),
+                                               GL_TEXTURE_2D, 1, glSurface.texture);
+      if (glGetError() != GL_NO_ERROR)
+      {
+        CLog::Log(LOGERROR, "VDPAU::COutput error register output surface");
+        m_vdpError = true;
+      }
+      glVDPAUSurfaceAccessNV(glSurface.glVdpauSurface, GL_READ_ONLY);
+      if (glGetError() != GL_NO_ERROR)
+      {
+        CLog::Log(LOGERROR, "VDPAU::COutput error setting access");
+        m_vdpError = true;
+      }
+      m_bufferPool.glOutputSurfaceMap[source] = glSurface;
       CLog::Log(LOGNOTICE, "VDPAU::COutput registered output surfaces");
     }
+
+    while (glGetError() != GL_NO_ERROR) ;
+    glVDPAUMapSurfacesNV(1, &m_bufferPool.glOutputSurfaceMap[source].glVdpauSurface);
+    if (glGetError() != GL_NO_ERROR)
+    {
+      CLog::Log(LOGERROR, "VDPAU::COutput error mapping surface");
+      m_vdpError = true;
+    }
+
+    if (m_vdpError)
+      return;
   }
 #endif
 }

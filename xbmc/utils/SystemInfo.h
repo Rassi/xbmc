@@ -35,7 +35,7 @@
 class CSysData
 {
 public:
-  enum INTERNET_STATE { UNKNOWN, CONNECTED, NO_DNS, DISCONNECTED };
+  enum INTERNET_STATE { UNKNOWN, CONNECTED, DISCONNECTED };
   CSysData()
   {
     Reset();
@@ -110,13 +110,14 @@ public:
   CStdString GetUnameVersion();
 #endif
 #if defined(TARGET_WINDOWS)
-  CStdString CSysInfo::GetUAWindowsVersion();
+  CStdString GetUAWindowsVersion();
 #endif
   CStdString GetUserAgent();
   bool HasInternet();
   bool IsAppleTV2();
   bool HasVideoToolBoxDecoder();
   bool IsAeroDisabled();
+  bool HasHW3DInterlaced();
   static bool IsWindowsVersion(WindowsVersion ver);
   static bool IsWindowsVersionAtLeast(WindowsVersion ver);
   static WindowsVersion GetWindowsVersion();
@@ -131,7 +132,7 @@ public:
   CStdString GetManufacturer();
   CStdString GetProduct();
   CStdString GetModel();
-  bool GetDiskSpace(const CStdString drive,int& iTotal, int& iTotalFree, int& iTotalUsed, int& iPercentFree, int& iPercentUsed);
+  bool GetDiskSpace(const CStdString& drive,int& iTotal, int& iTotalFree, int& iTotalUsed, int& iPercentFree, int& iPercentUsed);
   CStdString GetHddSpaceInfo(int& percent, int drive, bool shortText=false);
   CStdString GetHddSpaceInfo(int drive, bool shortText=false);
 

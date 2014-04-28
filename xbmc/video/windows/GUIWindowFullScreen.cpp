@@ -236,34 +236,56 @@ bool CGUIWindowFullScreen::OnAction(const CAction &action)
     {
       if (g_application.CurrentFileItem().IsLiveTV())
       {
-          CPVRChannelPtr channel;
-        int iChannelNumber = -1;
-        g_PVRManager.GetCurrentChannel(channel);
-
-        if (action.GetID() == REMOTE_0)
+        if(CPVRManager::Get().IsPlaying())
         {
-          iChannelNumber = g_PVRManager.GetPreviousChannel();
-          if (iChannelNumber > 0)
-            CLog::Log(LOGDEBUG, "switch to channel number %d", iChannelNumber);
+          // pvr client addon
+          CPVRChannelPtr playingChannel;
+          if(!g_PVRManager.GetCurrentChannel(playingChannel))
+            return false;
+
+          if (action.GetID() == REMOTE_0)
+          {
+            CPVRChannelGroupPtr group = g_PVRChannelGroups->GetPreviousPlayedGroup();
+            if (group)
+            {
+              g_PVRManager.SetPlayingGroup(group);
+              CFileItemPtr fileItem = group->GetLastPlayedChannel(playingChannel->ChannelID());
+              if (fileItem && fileItem->HasPVRChannelInfoTag())
+              {
+                CLog::Log(LOGDEBUG, "%s - switch to channel number %d", __FUNCTION__, fileItem->GetPVRChannelInfoTag()->ChannelNumber());
+                g_application.OnAction(CAction(ACTION_CHANNEL_SWITCH, (float) fileItem->GetPVRChannelInfoTag()->ChannelNumber()));
+              }
+            }
+          }
           else
-            CLog::Log(LOGDEBUG, "no previous channel number found");
+          {
+            int autoCloseTime = CSettings::Get().GetBool("pvrplayback.confirmchannelswitch") ? 0 : g_advancedSettings.m_iPVRNumericChannelSwitchTimeout;
+            CStdString strChannel = StringUtils::Format("%i", action.GetID() - REMOTE_0);
+            if (CGUIDialogNumeric::ShowAndGetNumber(strChannel, g_localizeStrings.Get(19000), autoCloseTime) || autoCloseTime)
+            {
+              int iChannelNumber = atoi(strChannel.c_str());
+              if (iChannelNumber > 0 && iChannelNumber != playingChannel->ChannelNumber())
+              {
+                CPVRChannelGroupPtr selectedGroup = g_PVRManager.GetPlayingGroup(playingChannel->IsRadio());
+                CFileItemPtr channel = selectedGroup->GetByChannelNumber(iChannelNumber);
+                if (!channel || !channel->HasPVRChannelInfoTag())
+                  return false;
+
+                g_application.OnAction(CAction(ACTION_CHANNEL_SWITCH, (float)iChannelNumber));
+              }
+            }
+          }
         }
         else
         {
-          int autoCloseTime = CSettings::Get().GetBool("pvrplayback.confirmchannelswitch") ? 0 : g_advancedSettings.m_iPVRNumericChannelSwitchTimeout;
+          // filesystem provider like slingbox, cmyth, etc
+          int iChannelNumber = -1;
           CStdString strChannel = StringUtils::Format("%i", action.GetID() - REMOTE_0);
-          if (CGUIDialogNumeric::ShowAndGetNumber(strChannel, g_localizeStrings.Get(19000), autoCloseTime) || autoCloseTime)
+          if (CGUIDialogNumeric::ShowAndGetNumber(strChannel, g_localizeStrings.Get(19000)))
             iChannelNumber = atoi(strChannel.c_str());
-        }
-
-        if (iChannelNumber > 0 && iChannelNumber != channel->ChannelNumber())
-        {
-          CPVRChannelGroupPtr selectedGroup = g_PVRManager.GetPlayingGroup(channel->IsRadio());
-          CFileItemPtr channel = selectedGroup->GetByChannelNumber(iChannelNumber);
-          if (!channel || !channel->HasPVRChannelInfoTag())
-            return false;
-
-          g_application.OnAction(CAction(ACTION_CHANNEL_SWITCH, (float)iChannelNumber));
+            
+          if (iChannelNumber > 0)
+            g_application.OnAction(CAction(ACTION_CHANNEL_SWITCH, (float)iChannelNumber));
         }
       }
       else
@@ -339,7 +361,7 @@ void CGUIWindowFullScreen::OnWindowLoaded()
   CGUIProgressControl* pProgress = (CGUIProgressControl*)GetControl(CONTROL_PROGRESS);
   if(pProgress)
   {
-    if( pProgress->GetInfo() == 0 || pProgress->GetVisibleCondition() == 0)
+    if( pProgress->GetInfo() == 0 || !pProgress->HasVisibleCondition())
     {
       pProgress->SetInfo(PLAYER_PROGRESS);
       pProgress->SetVisibleCondition("player.displayafterseek");
@@ -348,14 +370,14 @@ void CGUIWindowFullScreen::OnWindowLoaded()
   }
 
   CGUILabelControl* pLabel = (CGUILabelControl*)GetControl(LABEL_BUFFERING);
-  if(pLabel && pLabel->GetVisibleCondition() == 0)
+  if(pLabel && !pLabel->HasVisibleCondition())
   {
     pLabel->SetVisibleCondition("player.caching");
     pLabel->SetVisible(true);
   }
 
   pLabel = (CGUILabelControl*)GetControl(LABEL_CURRENT_TIME);
-  if(pLabel && pLabel->GetVisibleCondition() == 0)
+  if(pLabel && !pLabel->HasVisibleCondition())
   {
     pLabel->SetVisibleCondition("player.displayafterseek");
     pLabel->SetVisible(true);
@@ -417,6 +439,8 @@ bool CGUIWindowFullScreen::OnMessage(CGUIMessage& message)
       pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_DIRECTOR);
       if (pDialog) pDialog->Close(true);
       pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_CUTTER);
+      if (pDialog) pDialog->Close(true);
+      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_SUBTITLES);
       if (pDialog) pDialog->Close(true);
 
       CGUIWindow::OnMessage(message);
@@ -512,7 +536,7 @@ EVENT_RESULT CGUIWindowFullScreen::OnMouseEvent(const CPoint &point, const CMous
   {
     return g_application.OnAction(CAction(ACTION_ANALOG_SEEK_BACK, 0.5f)) ? EVENT_RESULT_HANDLED : EVENT_RESULT_UNHANDLED;
   }
-  if (event.m_id == ACTION_GESTURE_NOTIFY)
+  if (event.m_id >= ACTION_GESTURE_NOTIFY && event.m_id <= ACTION_GESTURE_END) // gestures
     return EVENT_RESULT_UNHANDLED;
   if (event.m_id != ACTION_MOUSE_MOVE || event.m_offsetX || event.m_offsetY)
   { // some other mouse action has occurred - bring up the OSD

@@ -237,7 +237,7 @@ bool CVideoInfoTag::Save(TiXmlNode *node, const CStdString &tag, bool savePathIn
   XMLUtils::SetFloat(&resume, "total", (float)m_resumePoint.totalTimeInSeconds);
   movie->InsertEndChild(resume);
 
-  XMLUtils::SetString(movie, "dateadded", m_dateAdded.GetAsDBDateTime());
+  XMLUtils::SetDateTime(movie, "dateadded", m_dateAdded);
 
   if (additionalNode)
     movie->InsertEndChild(*additionalNode);
@@ -477,6 +477,8 @@ void CVideoInfoTag::Serialize(CVariant& value) const
   value["dateadded"] = m_dateAdded.IsValid() ? m_dateAdded.GetAsDBDateTime() : StringUtils::EmptyString;
   value["type"] = m_type;
   value["seasonid"] = m_iIdSeason;
+  value["specialsortseason"] = m_iSpecialSortSeason;
+  value["specialsortepisode"] = m_iSpecialSortEpisode;
 }
 
 void CVideoInfoTag::ToSortable(SortItem& sortable, Field field) const
@@ -490,7 +492,14 @@ void CVideoInfoTag::ToSortable(SortItem& sortable, Field field) const
   case FieldTagline:                  sortable[FieldTagline] = m_strTagLine; break;
   case FieldPlotOutline:              sortable[FieldPlotOutline] = m_strPlotOutline; break;
   case FieldPlot:                     sortable[FieldPlot] = m_strPlot; break;
-  case FieldTitle:                    sortable[FieldTitle] = m_strTitle; break;
+  case FieldTitle:
+  {
+    // make sure not to overwrite an existing path with an empty one
+    std::string title = m_strTitle;
+    if (!title.empty() || sortable.find(FieldTitle) == sortable.end())
+      sortable[FieldTitle] = title;
+    break;
+  }
   case FieldVotes:                    sortable[FieldVotes] = m_strVotes; break;
   case FieldStudio:                   sortable[FieldStudio] = m_studio; break;
   case FieldTrailer:                  sortable[FieldTrailer] = m_strTrailer; break;
@@ -498,7 +507,14 @@ void CVideoInfoTag::ToSortable(SortItem& sortable, Field field) const
   case FieldTime:                     sortable[FieldTime] = GetDuration(); break;
   case FieldFilename:                 sortable[FieldFilename] = m_strFile; break;
   case FieldMPAA:                     sortable[FieldMPAA] = m_strMPAARating; break;
-  case FieldPath:                     sortable[FieldPath] = m_strFileNameAndPath; break;
+  case FieldPath:
+  {
+    // make sure not to overwrite an existing path with an empty one
+    std::string path = GetPath();
+    if (!path.empty() || sortable.find(FieldPath) == sortable.end())
+      sortable[FieldPath] = path;
+    break;
+  }
   case FieldSortTitle:                sortable[FieldSortTitle] = m_strSortTitle; break;
   case FieldTvShowStatus:             sortable[FieldTvShowStatus] = m_strStatus; break;
   case FieldProductionCode:           sortable[FieldProductionCode] = m_strProductionCode; break;
@@ -769,10 +785,7 @@ void CVideoInfoTag::ParseNative(const TiXmlElement* movie, bool prioritise)
     XMLUtils::GetDouble(resume, "total", m_resumePoint.totalTimeInSeconds);
   }
 
-  // dateAdded
-  CStdString dateAdded;
-  XMLUtils::GetString(movie, "dateadded", dateAdded);
-  m_dateAdded.SetFromDBDateTime(dateAdded);
+  XMLUtils::GetDateTime(movie, "dateadded", m_dateAdded);
 }
 
 bool CVideoInfoTag::HasStreamDetails() const

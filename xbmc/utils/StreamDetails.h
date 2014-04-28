@@ -113,6 +113,7 @@ public:
   int GetVideoWidth(int idx = 0) const;
   int GetVideoHeight(int idx = 0) const;
   int GetVideoDuration(int idx = 0) const;
+  void SetVideoDuration(int idx, const int duration);
   std::string GetStereoMode(int idx = 0) const;
 
   CStdString GetAudioCodec(int idx = 0) const;
@@ -127,9 +128,6 @@ public:
 
   virtual void Archive(CArchive& ar);
   virtual void Serialize(CVariant& value) const;
-
-  // Language to use for "best" subtitle stream
-  CStdString m_strLanguage;
 
 private:
   CStreamDetail *NewStream(CStreamDetail::StreamType type);

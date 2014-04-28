@@ -309,9 +309,8 @@
 					<left>268</left>
 					<top>10</top>
 					<width>804</width>
-					<height>100</height>
-					<aspectratio>stretch</aspectratio>
-					<texture>GlassTitleBar.png</texture>
+					<height>52</height>
+					<texture>dialogheader.png</texture>
 				</control>
 				<control type="label">
 					<description>header label Finished Searching</description>
@@ -321,7 +320,7 @@
 					<height>30</height>
 					<font>font16</font>
 					<label>$INFO[Container(9000).ListItem.Label]</label>
-					<align>left</align>
+					<align>center</align>
 					<aligny>center</aligny>
 					<textcolor>white</textcolor>
 					<shadowcolor>black</shadowcolor>
@@ -335,7 +334,7 @@
 					<height>30</height>
 					<font>font16</font>
 					<label>$INFO[Control.GetLabel(190)] $INFO[Control.GetLabel(191)]</label>
-					<align>left</align>
+					<align>center</align>
 					<aligny>center</aligny>
 					<textcolor>blue</textcolor>
 					<shadowcolor>black</shadowcolor>
@@ -367,7 +366,7 @@
 					<height>20</height>
 					<label>[B]$LOCALIZE[284][/B]</label>
 					<font>font16caps</font>
-					<textcolor>FFFFFFFF</textcolor>
+					<textcolor>white</textcolor>
 					<align>center</align>
 					<aligny>center</aligny>
 				</control>
@@ -391,7 +390,7 @@
 					<height>10</height>
 					<label>-</label>
 					<font>font10</font>
-					<textcolor>FFFFFFFF</textcolor>
+					<textcolor>white</textcolor>
 					<align>center</align>
 					<aligny>center</aligny>
 					<texturefocus border="5">button-focus.png</texturefocus>
@@ -402,6 +401,7 @@
 					<onright>101</onright>
 				</control>
 				<control type="group" id="101">
+					<top>4</top>
 					<control type="group" id="119">
 						<left>0</left>
 						<top>0</top>
@@ -620,7 +620,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -794,7 +794,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -925,7 +925,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -1093,7 +1093,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -1282,7 +1282,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -1435,7 +1435,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -1588,7 +1588,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>
@@ -1761,7 +1761,7 @@
 						</control>
 						<control type="label">
 							<description>number of files/pages in list text label</description>
-							<right>750</right>
+							<left>250</left>
 							<top>530</top>
 							<width>500</width>
 							<height>35</height>

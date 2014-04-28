@@ -236,8 +236,8 @@
       <l>NextSubtitle</l>
       <left>StepBack</left>
       <right>StepForward</right>
-      <up>BigStepForward</up>
-      <down>BigStepBack</down>
+      <up>ChapterOrBigStepForward</up>
+      <down>ChapterOrBigStepBack</down>
       <a>AudioDelay</a>
       <escape>Fullscreen</escape>
       <c>Playlist</c>
@@ -485,6 +485,8 @@
   <Favourites>
     <keyboard>
       <backspace>Close</backspace>
+      <u>MoveItemUp</u>
+      <d>MoveItemDown</d>
     </keyboard>
   </Favourites>
   <NumericInput>

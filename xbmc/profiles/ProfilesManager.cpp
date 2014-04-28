@@ -96,10 +96,10 @@ void CProfilesManager::OnSettingsLoaded()
   CDirectory::Create(URIUtils::AddFileToFolder(strDir,"mixed"));
 }
 
-bool CProfilesManager::OnSettingsSaved()
+void CProfilesManager::OnSettingsSaved()
 {
   // save mastercode
-  return Save();
+  Save();
 }
 
 void CProfilesManager::OnSettingsCleared()
@@ -216,11 +216,11 @@ bool CProfilesManager::Save(const std::string &file) const
 void CProfilesManager::Clear()
 {
   CSingleLock lock(m_critical);
-  m_profiles.clear();
   m_usingLoginScreen = false;
   m_lastUsedProfile = 0;
   m_nextProfileId = 0;
   SetCurrentProfileId(0);
+  m_profiles.clear();
 }
 
 bool CProfilesManager::LoadProfile(size_t index)
@@ -364,7 +364,7 @@ void CProfilesManager::CreateProfileFolders()
 const CProfile& CProfilesManager::GetMasterProfile() const
 {
   CSingleLock lock(m_critical);
-  if (m_profiles.size() > 0)
+  if (!m_profiles.empty())
     return m_profiles[0];
 
   CLog::Log(LOGERROR, "%s: master profile doesn't exist", __FUNCTION__);

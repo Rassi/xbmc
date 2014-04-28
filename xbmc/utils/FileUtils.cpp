@@ -55,7 +55,7 @@ bool CFileUtils::DeleteItem(const CFileItemPtr &item, bool force)
   {
     pDialog->SetHeading(122);
     pDialog->SetLine(0, 125);
-    pDialog->SetLine(1, URIUtils::GetFileName(item->GetPath()));
+    pDialog->SetLine(1, CURL(item->GetPath()).GetWithoutUserDetails());
     pDialog->SetLine(2, "");
     pDialog->DoModal();
     if (!pDialog->IsConfirmed()) return false;
@@ -132,6 +132,10 @@ bool CFileUtils::RemoteAccessAllowed(const CStdString &strPath)
     return true;
   else if (StringUtils::StartsWithNoCase(realPath, "special://videoplaylists"))
     return true;
+  else if (StringUtils::StartsWithNoCase(realPath, "special://skin"))
+    return true;
+  else if (StringUtils::StartsWithNoCase(realPath, "special://profile/addon_data"))
+    return true;
   else if (StringUtils::StartsWithNoCase(realPath, "addons://sources"))
     return true;
   else if (StringUtils::StartsWithNoCase(realPath, "upnp://"))
@@ -160,4 +164,3 @@ unsigned int CFileUtils::LoadFile(const std::string &filename, void* &outputBuff
 
   return total_read;
 }
-

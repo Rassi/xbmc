@@ -797,10 +797,6 @@ msgctxt "#251"
 msgid "Select destination directory"
 msgstr "Mo'ljal direktoriyasini tanlash"
 
-msgctxt "#252"
-msgid "Output stereo to all speakers"
-msgstr "Stereo hamma karnaylarga chiqarish"
-
 msgctxt "#253"
 msgid "Number of channels"
 msgstr "Kanallar soni"
@@ -968,10 +964,6 @@ msgstr "Til"
 msgctxt "#305"
 msgid "Enabled"
 msgstr "Yoqilgan"
-
-msgctxt "#309"
-msgid "User Interface language"
-msgstr "Foydalanuvchi interfeysi tili"
 
 msgctxt "#312"
 msgid "(0=auto)"
@@ -1152,6 +1144,10 @@ msgstr "Sarlavha"
 msgctxt "#370"
 msgid "Thunderstorms"
 msgstr "Momaqaldiroq"
+
+msgctxt "#371"
+msgid "Partly"
+msgstr "Qisman"
 
 msgctxt "#375"
 msgid "Snow"
@@ -2405,6 +2401,26 @@ msgctxt "#12005"
 msgid "Fullscreen video"
 msgstr "To'liq ekran video"
 
+msgctxt "#12009"
+msgid "Rebuild index..."
+msgstr "Indeksni qayta qurish..."
+
+msgctxt "#12010"
+msgid "Return to music window"
+msgstr "Musiqa oynasiga qaytish"
+
+msgctxt "#12011"
+msgid "Return to videos window"
+msgstr "Video oynasiga qaytish"
+
+msgctxt "#12021"
+msgid "Start from beginning"
+msgstr "Boshidan boshlash"
+
+msgctxt "#12022"
+msgid "Resume from %s"
+msgstr "%s'dan davom ettirish"
+
 msgctxt "#12310"
 msgid "0"
 msgstr "0"
@@ -2453,9 +2469,21 @@ msgctxt "#12322"
 msgid "*"
 msgstr "*"
 
+msgctxt "#12325"
+msgid "Locked! Enter code..."
+msgstr "Bloklangan! Kodni kiriting..."
+
 msgctxt "#12326"
 msgid "Enter password"
 msgstr "Maxfiy so'zni kiriting"
+
+msgctxt "#12327"
+msgid "Enter master code"
+msgstr "Bosh kodni kiritish"
+
+msgctxt "#12328"
+msgid "Enter unlock code"
+msgstr "Blokdan chiqarish kodini kiritish"
 
 msgctxt "#12329"
 msgid "or press C to cancel"
@@ -2661,10 +2689,6 @@ msgctxt "#13346"
 msgid "Movie information"
 msgstr "Film ma'lumoti"
 
-msgctxt "#13350"
-msgid "Now playing..."
-msgstr "Ijro ettirilmoqda..."
-
 msgctxt "#13351"
 msgid "Album information"
 msgstr "Albom ma'lumoti"
@@ -2732,14 +2756,6 @@ msgstr "Ko'rish parametrlari"
 msgctxt "#14022"
 msgid "Library"
 msgstr "To'plam"
-
-msgctxt "#14028"
-msgid "Internet"
-msgstr "Internet"
-
-msgctxt "#14032"
-msgid "Internet"
-msgstr "Internet"
 
 msgctxt "#14036"
 msgid "Services"
@@ -3197,10 +3213,6 @@ msgctxt "#19117"
 msgid "Search for channels"
 msgstr "Kanallarni qidirish"
 
-msgctxt "#19119"
-msgid "On which server you want to search?"
-msgstr "Qaysi serverda qidirmoqchisiz?"
-
 msgctxt "#19120"
 msgid "Client number"
 msgstr "Mijoz raqami"
@@ -3565,10 +3577,6 @@ msgctxt "#19645"
 msgid "Tourism/Travel"
 msgstr "Sayohat/Safar"
 
-msgctxt "#19648"
-msgid "Fitness &amp; Health"
-msgstr "Fitnes va Sog'liq"
-
 msgctxt "#19649"
 msgid "Cooking"
 msgstr "Pazandalik"
@@ -3576,10 +3584,6 @@ msgstr "Pazandalik"
 msgctxt "#19661"
 msgid "Original Language"
 msgstr "Asl til"
-
-msgctxt "#19662"
-msgid "Black &amp; White"
-msgstr "Qora va oq"
 
 msgctxt "#19676"
 msgid "Drama"
@@ -4049,6 +4053,10 @@ msgctxt "#33063"
 msgid "Options"
 msgstr "Parametrlar"
 
+msgctxt "#34100"
+msgid "Number of channels"
+msgstr "Kanallar soni"
+
 msgctxt "#34101"
 msgid "2.0"
 msgstr "2.0"
@@ -4180,3 +4188,7 @@ msgstr "Qo'llab-quvvatlanmaydigan libCEC interfeysi versiyasi. %x XBMC qo'llab-q
 msgctxt "#36041"
 msgid "* Item folder"
 msgstr "* Element jildi"
+
+msgctxt "#36428"
+msgid "Record"
+msgstr "Yozish"
